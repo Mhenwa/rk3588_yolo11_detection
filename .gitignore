@@ -69,3 +69,4 @@ logs/
 # for develop
 track.md
 AGENTS.md
+config.json
