@@ -1,0 +1,149 @@
+#include "app_config.h"
+
+#include <cstdio>
+#include <string>
+
+static int g_failures = 0;
+
+static void check(bool condition, const char* message)
+{
+    if (!condition) {
+        std::fprintf(stderr, "FAIL: %s\n", message);
+        g_failures++;
+    }
+}
+
+static nlohmann::json parse_json(const char* text)
+{
+    return nlohmann::json::parse(text);
+}
+
+int main()
+{
+    {
+        const char* text = R"JSON(
+        {
+          "general": {
+            "mode": "image",
+            "label": "labels.txt",
+            "model_path": "model.rknn"
+          },
+          "modes": {
+            "image": { "input": "image.jpg" }
+          }
+        }
+        )JSON";
+        nlohmann::json root = parse_json(text);
+        AppConfig cfg;
+        std::string error;
+        bool ok = parse_config(root, &cfg, &error);
+        check(ok, "parse image config");
+        check(cfg.mode_type == INPUT_IMAGE, "image mode type");
+        check(cfg.input == "image.jpg", "image input path");
+        check(cfg.sources.empty(), "image sources empty");
+    }
+
+    {
+        const char* text = R"JSON(
+        {
+          "general": {
+            "mode": "video_camera",
+            "label": "labels.txt",
+            "model_path": "model.rknn"
+          },
+          "modes": {
+            "video_camera": {
+              "sources": [
+                {
+                  "name": "camera.0",
+                  "input": "/dev/video0",
+                  "format": "mjpg"
+                }
+              ]
+            }
+          }
+        }
+        )JSON";
+        nlohmann::json root = parse_json(text);
+        AppConfig cfg;
+        std::string error;
+        bool ok = parse_config(root, &cfg, &error);
+        check(ok, "parse video_camera config");
+        check(cfg.mode_type == INPUT_VIDEO_CAMERA, "video_camera mode type");
+        check(cfg.sources.size() == 1, "one source parsed");
+        if (!cfg.sources.empty()) {
+            const SourceConfig& src = cfg.sources.front();
+            check(src.type == INPUT_CAMERA, "source type inferred as camera");
+            check(src.format == "mjpeg", "format normalized to mjpeg");
+            check(!src.conf_threshold_set, "conf_threshold unset");
+            check(src.conf_threshold == kDefaultConfThreshold, "conf_threshold default");
+            check(!src.threads_set, "threads unset");
+            check(src.threads == 3, "threads default");
+        }
+    }
+
+    {
+        const char* text = R"JSON(
+        {
+          "general": {
+            "mode": "video_camera",
+            "label": "labels.txt",
+            "model_path": "model.rknn"
+          },
+          "modes": {
+            "video_camera": {
+              "sources": [
+                {
+                  "name": "camera.0",
+                  "input": "/dev/video0",
+                  "conf_threshold": 1.5
+                }
+              ]
+            }
+          }
+        }
+        )JSON";
+        nlohmann::json root = parse_json(text);
+        AppConfig cfg;
+        std::string error;
+        bool ok = parse_config(root, &cfg, &error);
+        check(!ok, "reject conf_threshold > 1");
+        check(error.find("conf_threshold") != std::string::npos,
+              "conf_threshold error text");
+    }
+
+    {
+        const char* text = R"JSON(
+        {
+          "general": {
+            "mode": "video_camera",
+            "label": "labels.txt",
+            "model_path": "model.rknn"
+          },
+          "modes": {
+            "video_camera": {
+              "sources": [
+                {
+                  "name": "camera.0",
+                  "input": "/dev/video0",
+                  "width": 640
+                }
+              ]
+            }
+          }
+        }
+        )JSON";
+        nlohmann::json root = parse_json(text);
+        AppConfig cfg;
+        std::string error;
+        bool ok = parse_config(root, &cfg, &error);
+        check(!ok, "reject width without height");
+        check(error.find("width") != std::string::npos,
+              "width/height error text");
+    }
+
+    if (g_failures == 0) {
+        std::printf("All app_config tests passed.\n");
+    }
+    return g_failures == 0 ? 0 : 1;
+}
