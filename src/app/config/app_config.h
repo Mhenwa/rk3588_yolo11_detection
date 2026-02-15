@@ -18,7 +18,7 @@ struct SourceConfig {
     int height = 0;
     int buffers = 0;
     double fps = 30.0;
-    std::string format = "auto";
+    std::string format = "auto";  // camera pixel format or rtsp codec(h264/h265/auto)
     double conf_threshold = kDefaultConfThreshold;
     bool threads_set = false;
     bool width_set = false;

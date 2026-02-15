@@ -7,6 +7,7 @@ enum InputType {
     INPUT_IMAGE,
     INPUT_VIDEO,
     INPUT_CAMERA,
+    INPUT_RTSP,
     INPUT_VIDEO_CAMERA
 };
 

@@ -142,6 +142,71 @@ int main()
               "width/height error text");
     }
 
+    {
+        const char* text = R"JSON(
+        {
+          "general": {
+            "mode": "video_camera",
+            "label": "labels.txt",
+            "model_path": "model.rknn"
+          },
+          "modes": {
+            "video_camera": {
+              "sources": [
+                {
+                  "name": "rtsp.0",
+                  "input": "rtsp://127.0.0.1:8554/test",
+                  "format": "h264"
+                }
+              ]
+            }
+          }
+        }
+        )JSON";
+        nlohmann::json root = parse_json(text);
+        AppConfig cfg;
+        std::string error;
+        bool ok = parse_config(root, &cfg, &error);
+        check(ok, "parse rtsp config");
+        check(cfg.sources.size() == 1, "one rtsp source parsed");
+        if (!cfg.sources.empty()) {
+            const SourceConfig& src = cfg.sources.front();
+            check(src.type == INPUT_RTSP, "source type inferred as rtsp");
+            check(src.format == "h264", "rtsp codec parsed");
+        }
+    }
+
+    {
+        const char* text = R"JSON(
+        {
+          "general": {
+            "mode": "video_camera",
+            "label": "labels.txt",
+            "model_path": "model.rknn"
+          },
+          "modes": {
+            "video_camera": {
+              "sources": [
+                {
+                  "name": "rtsp.0",
+                  "type": "rtsp",
+                  "input": "/dev/video0",
+                  "format": "h264"
+                }
+              ]
+            }
+          }
+        }
+        )JSON";
+        nlohmann::json root = parse_json(text);
+        AppConfig cfg;
+        std::string error;
+        bool ok = parse_config(root, &cfg, &error);
+        check(!ok, "reject non-rtsp input for rtsp type");
+        check(error.find("rtsp source input") != std::string::npos,
+              "rtsp input error text");
+    }
+
     if (g_failures == 0) {
         std::printf("All app_config tests passed.\n");
     }

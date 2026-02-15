@@ -26,6 +26,7 @@ void print_usage(const char* prog)
     LOGI("  modes.image: { input }\n");
     LOGI("  modes.video_camera.sources:\n");
     LOGI("    [ { name, type, input, threads, width, height, buffers, fps, format, conf_threshold } ]\n");
+    LOGI("    type=video|camera|rtsp, rtsp format=auto|h264|h265\n");
 }
 
 static std::string format_resolution(int width, int height)
@@ -141,6 +142,7 @@ void print_run_report(const RunReport& report,
     if (report.type == INPUT_IMAGE) mode = "image";
     else if (report.type == INPUT_VIDEO) mode = "video";
     else if (report.type == INPUT_CAMERA) mode = "camera";
+    else if (report.type == INPUT_RTSP) mode = "rtsp";
     else if (report.type == INPUT_VIDEO_CAMERA) mode = "video_camera";
     puts("");
     LOGI("===== Run Report =====\n");

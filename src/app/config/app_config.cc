@@ -24,6 +24,18 @@ std::string to_lower(std::string value)
     return value;
 }
 
+bool starts_with(const std::string& value, const std::string& prefix)
+{
+    return value.size() >= prefix.size() &&
+           value.compare(0, prefix.size(), prefix) == 0;
+}
+
+bool is_rtsp_url(const std::string& input)
+{
+    std::string lower = to_lower(input);
+    return starts_with(lower, "rtsp://") || starts_with(lower, "rtsps://");
+}
+
 bool read_required_string(const json& obj,
                           const char* key,
                           std::string* out,
@@ -198,8 +210,9 @@ bool parse_format(const json& obj,
         value = to_lower(value);
         if (value == "mjpg") value = "mjpeg";
         if (value != "auto" && value != "mjpeg" &&
-            value != "yuyv" && value != "nv12") {
-            return set_error(error, "format must be auto/mjpeg/yuyv/nv12 in " + context);
+            value != "yuyv" && value != "nv12" &&
+            value != "h264" && value != "h265") {
+            return set_error(error, "invalid format in " + context);
         }
         if (format) *format = value;
     }
@@ -300,6 +313,10 @@ bool parse_config(const nlohmann::json& root,
                                       &source.name, source_context, error)) {
                 return false;
             }
+            if (!read_required_string(source_json, "input",
+                                      &source.input, source_context, error)) {
+                return false;
+            }
 
             std::string type_value;
             auto type_it = source_json.find("type");
@@ -315,6 +332,8 @@ bool parse_config(const nlohmann::json& root,
                     type_value = "video";
                 } else if (lower.rfind("camera.", 0) == 0) {
                     type_value = "camera";
+                } else if (lower.rfind("rtsp.", 0) == 0 || is_rtsp_url(source.input)) {
+                    type_value = "rtsp";
                 } else {
                     return set_error(error, "invalid source type in " + source_context);
                 }
@@ -323,14 +342,11 @@ bool parse_config(const nlohmann::json& root,
                 source.type = INPUT_VIDEO;
             } else if (type_value == "camera") {
                 source.type = INPUT_CAMERA;
+            } else if (type_value == "rtsp") {
+                source.type = INPUT_RTSP;
             } else {
                 return set_error(error, "invalid source type in " + source_context +
                                         ": " + type_value);
-            }
-
-            if (!read_required_string(source_json, "input",
-                                      &source.input, source_context, error)) {
-                return false;
             }
             if (!read_int_optional(source_json, "threads", &source.threads,
                                    &source.threads_set, source_context, error)) {
@@ -352,6 +368,26 @@ bool parse_config(const nlohmann::json& root,
             if (!parse_format(source_json, source_context, &source.format,
                               &source.format_set, error)) {
                 return false;
+            }
+            if (source.type == INPUT_CAMERA) {
+                if (source.format != "auto" && source.format != "mjpeg" &&
+                    source.format != "yuyv" && source.format != "nv12") {
+                    return set_error(error,
+                                     "format must be auto/mjpeg/yuyv/nv12 in " +
+                                         source_context);
+                }
+            } else if (source.type == INPUT_RTSP) {
+                if (!is_rtsp_url(source.input)) {
+                    return set_error(error,
+                                     "rtsp source input must start with rtsp:// or rtsps:// in " +
+                                         source_context);
+                }
+                if (source.format != "auto" && source.format != "h264" &&
+                    source.format != "h265") {
+                    return set_error(error,
+                                     "format must be auto/h264/h265 in " +
+                                         source_context);
+                }
             }
             if (!read_double_optional(source_json, "conf_threshold",
                                       &source.conf_threshold,

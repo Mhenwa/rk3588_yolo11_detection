@@ -30,4 +30,13 @@ bool run_camera_mode(const char* input_arg,
                      double fps,
                      const std::string& format);
 
+bool run_rtsp_mode(const char* input_arg,
+                   WorkerPool* pool,
+                   RunReport* report,
+                   const char* window_name,
+                   double max_fps,
+                   int resize_width,
+                   int resize_height,
+                   const std::string& codec);
+
 #endif  // APP_MODES_H_

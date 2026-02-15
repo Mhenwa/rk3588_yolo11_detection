@@ -1,5 +1,7 @@
 #include "video_camera_runtime.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <memory>
 #include <thread>
@@ -10,6 +12,21 @@
 #include "worker_pool.h"
 
 namespace {
+bool starts_with(const std::string& value, const std::string& prefix)
+{
+    return value.size() >= prefix.size() &&
+           value.compare(0, prefix.size(), prefix) == 0;
+}
+
+bool is_rtsp_input(const std::string& input)
+{
+    std::string lower = input;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return starts_with(lower, "rtsp://") || starts_with(lower, "rtsps://");
+}
+
 struct SourceRuntime {
     SourceConfig cfg;
     std::string window_name;
@@ -17,6 +34,7 @@ struct SourceRuntime {
     RunReport report;
     std::thread th;
     bool init_ok = false;
+    bool is_rtsp_source = false;
 };
 }  // namespace
 
@@ -38,17 +56,20 @@ bool run_video_camera_mode(const std::vector<SourceConfig>& sources,
     for (const auto& source : sources) {
         auto runtime = std::make_unique<SourceRuntime>();
         runtime->cfg = source;
+        runtime->is_rtsp_source = (source.type == INPUT_RTSP) ||
+                                  is_rtsp_input(source.input);
         runtime->window_name = "dock_blindspot - " + source.name;
         memset(&runtime->report, 0, sizeof(RunReport));
-        runtime->report.type = source.type;
+        runtime->report.type = runtime->is_rtsp_source ? INPUT_RTSP : source.type;
         runtime->report.threads_use = source.threads;
         runtime->report.ok = false;
-        if (source.type == INPUT_VIDEO && source.buffers_set) {
+        if (source.type != INPUT_CAMERA && source.buffers_set) {
             LOGW("buffers is only valid for camera sources, ignored for [%s]\n",
                  source.name.c_str());
         }
-        if (source.type == INPUT_VIDEO && source.format_set) {
-            LOGW("format is only valid for camera sources, ignored for [%s]\n",
+        if (source.type == INPUT_VIDEO && source.format_set &&
+            !runtime->is_rtsp_source) {
+            LOGW("format is only valid for camera/rtsp sources, ignored for [%s]\n",
                  source.name.c_str());
         }
         if (!init_worker_pool(model_path, source.threads,
@@ -77,7 +98,16 @@ bool run_video_camera_mode(const std::vector<SourceConfig>& sources,
         if (!runtime->init_ok) continue;
         runtime->th = std::thread([runtime]() {
             bool ok = false;
-            if (runtime->cfg.type == INPUT_VIDEO) {
+            if (runtime->is_rtsp_source) {
+                ok = run_rtsp_mode(runtime->cfg.input.c_str(),
+                                   &runtime->pool,
+                                   &runtime->report,
+                                   runtime->window_name.c_str(),
+                                   runtime->cfg.fps,
+                                   runtime->cfg.width,
+                                   runtime->cfg.height,
+                                   runtime->cfg.format);
+            } else if (runtime->cfg.type == INPUT_VIDEO) {
                 ok = run_video_mode(runtime->cfg.input.c_str(),
                                     &runtime->pool,
                                     &runtime->report,

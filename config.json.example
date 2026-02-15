@@ -1,8 +1,8 @@
 {
   "general": {
     "mode": "video_camera",
-    "label": "./model/new/best3_labels_lists.txt",
-    "model_path": "./model/new/bests3640silu.rknn"
+    "label": "./model/best3_labels_lists.txt",
+    "model_path": "./model/yolo11srk3576.rknn"
   },
   "modes": {
     "image": {
@@ -44,6 +44,28 @@
           "buffers": 2,
           "fps": 15,
           "format": "mjpg",
+          "conf_threshold": 0.3
+        },
+        {
+          "name": "rtsp.0",
+          "type": "rtsp",
+          "input": "rtsp://192.168.137.1:554/easy0.mp4",
+          "threads": 1,
+          "width": 1296,
+          "height": 904,
+          "fps": 15,
+          "format": "h264",
+          "conf_threshold": 0.3
+        },
+        {
+          "name": "rtsp.1",
+          "type": "rtsp",
+          "input": "rtsp://192.168.137.1:554/easy1.mp4",
+          "threads": 1,
+          "width": 1296,
+          "height": 904,
+          "fps": 15,
+          "format": "auto",
           "conf_threshold": 0.3
         }
       ]

@@ -65,6 +65,7 @@ add_executable(demo
     app/modes/mode_image.cc
     app/modes/mode_video.cc
     app/modes/mode_camera.cc
+    app/modes/mode_rtsp.cc
     app/log/app_log.cc
     app/utils/app_utils.cc
     app/worker/app_worker.cc
@@ -125,6 +126,7 @@ target_link_libraries(demo
 #     app/modes/mode_image.cc
 #     app/modes/mode_video.cc
 #     app/modes/mode_camera.cc
+#     app/modes/mode_rtsp.cc
 #     app/app_utils.cc
 #     app/app_worker.cc
 #     app/worker/worker_pool.cc
