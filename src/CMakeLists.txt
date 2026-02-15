@@ -3,11 +3,46 @@ project(demo)
 
 set(CMAKE_CXX_STANDARD 14)
 
+set(RKNNRT_FALLBACK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/rknpu2/${CMAKE_SYSTEM_NAME}/${CMAKE_SYSTEM_PROCESSOR}")
+if(NOT EXISTS "${RKNNRT_FALLBACK_DIR}/librknnrt.so")
+    set(RKNNRT_FALLBACK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/rknpu2/${CMAKE_SYSTEM_NAME}/aarch64")
+endif()
+
+find_library(RKNNRT_LIB
+    NAMES rknnrt
+    HINTS
+        /usr/lib
+        /usr/lib64
+        /lib
+        /lib64
+        /usr/local/lib
+        /usr/local/lib64
+        "${RKNNRT_FALLBACK_DIR}"
+)
+if(NOT RKNNRT_LIB)
+    message(FATAL_ERROR "Cannot find librknnrt.so in system paths or bundled 3rdparty path")
+endif()
+
+find_path(RKNNRT_INCLUDE_DIR
+    NAMES rknn_api.h
+    HINTS
+        /usr/include
+        /usr/local/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/rknpu2/include
+)
+if(NOT RKNNRT_INCLUDE_DIR)
+    message(FATAL_ERROR "Cannot find rknn_api.h in system paths or bundled 3rdparty path")
+endif()
+
+set(LIBRKNNRT_INCLUDES ${RKNNRT_INCLUDE_DIR})
+message(STATUS "Using RKNN runtime library: ${RKNNRT_LIB}")
+message(STATUS "Using RKNN include path: ${RKNNRT_INCLUDE_DIR}")
+
 add_library(rknnrt SHARED IMPORTED GLOBAL)
 
 set_target_properties(rknnrt PROPERTIES
-    IMPORTED_LOCATION /usr/lib/librknnrt.so
-    INTERFACE_INCLUDE_DIRECTORIES /usr/include
+    IMPORTED_LOCATION ${RKNNRT_LIB}
+    INTERFACE_INCLUDE_DIRECTORIES ${RKNNRT_INCLUDE_DIR}
 )
 
 # ===== OpenCV =====
