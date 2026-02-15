@@ -48,6 +48,13 @@ set_target_properties(rknnrt PROPERTIES
 # ===== OpenCV =====
 find_package(OpenCV REQUIRED)
 
+# rk3576: temporary workaround, force CPU preprocessing path.
+if (TARGET_SOC STREQUAL "rk3576")
+    set(DISABLE_RGA ON CACHE BOOL "Disable RGA preprocessing on rk3576" FORCE)
+    set(FORCE_CPU_PREPROCESS ON)
+    message(WARNING "TARGET_SOC=rk3576: force CPU preprocessing (DISABLE_RGA)")
+endif()
+
 # ===== Third-party & utils =====
 add_subdirectory(../3rdparty 3rdparty.out)
 add_subdirectory(../utils utils.out)
@@ -94,6 +101,9 @@ target_include_directories(demo PRIVATE
 )
 
 target_compile_definitions(demo PRIVATE SPDLOG_HEADER_ONLY)
+if (FORCE_CPU_PREPROCESS)
+    target_compile_definitions(demo PRIVATE DISABLE_RGA)
+endif()
 
 target_link_libraries(demo
     PRIVATE
