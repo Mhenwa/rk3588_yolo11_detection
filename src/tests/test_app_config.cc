@@ -5,46 +5,53 @@
 
 static int g_failures = 0;
 
-static void check(bool condition, const char* message)
+static void check(bool condition, const char *message)
 {
-    if (!condition) {
-        std::fprintf(stderr, "FAIL: %s\n", message);
-        g_failures++;
-    }
+  if (!condition)
+  {
+    std::fprintf(stderr, "FAIL: %s\n", message);
+    g_failures++;
+  }
 }
 
-static nlohmann::json parse_json(const char* text)
+static nlohmann::json parse_json(const char *text)
 {
-    return nlohmann::json::parse(text);
+  return nlohmann::json::parse(text);
 }
 
 int main()
 {
-    {
-        const char* text = R"JSON(
+  {
+    const char *text = R"JSON(
         {
           "general": {
-            "mode": "image",
+            "mode": "video_camera",
             "label": "labels.txt",
             "model_path": "model.rknn"
           },
           "modes": {
-            "image": { "input": "image.jpg" }
+            "video_camera": {
+              "sources": [
+                {
+                  "name": "video.0",
+                  "input": "video.mp4"
+                }
+              ]
+            }
           }
         }
         )JSON";
-        nlohmann::json root = parse_json(text);
-        AppConfig cfg;
-        std::string error;
-        bool ok = parse_config(root, &cfg, &error);
-        check(ok, "parse image config");
-        check(cfg.mode_type == INPUT_IMAGE, "image mode type");
-        check(cfg.input == "image.jpg", "image input path");
-        check(cfg.sources.empty(), "image sources empty");
-    }
+    nlohmann::json root = parse_json(text);
+    AppConfig cfg;
+    std::string error;
+    bool ok = parse_config(root, &cfg, &error);
+    check(ok, "parse video_camera minimal config");
+    check(cfg.mode_type == INPUT_VIDEO_CAMERA, "video_camera mode type");
+    check(cfg.sources.size() == 1, "video source exists");
+  }
 
-    {
-        const char* text = R"JSON(
+  {
+    const char *text = R"JSON(
         {
           "general": {
             "mode": "video_camera",
@@ -64,26 +71,27 @@ int main()
           }
         }
         )JSON";
-        nlohmann::json root = parse_json(text);
-        AppConfig cfg;
-        std::string error;
-        bool ok = parse_config(root, &cfg, &error);
-        check(ok, "parse video_camera config");
-        check(cfg.mode_type == INPUT_VIDEO_CAMERA, "video_camera mode type");
-        check(cfg.sources.size() == 1, "one source parsed");
-        if (!cfg.sources.empty()) {
-            const SourceConfig& src = cfg.sources.front();
-            check(src.type == INPUT_CAMERA, "source type inferred as camera");
-            check(src.format == "mjpeg", "format normalized to mjpeg");
-            check(!src.conf_threshold_set, "conf_threshold unset");
-            check(src.conf_threshold == kDefaultConfThreshold, "conf_threshold default");
-            check(!src.threads_set, "threads unset");
-            check(src.threads == 3, "threads default");
-        }
-    }
-
+    nlohmann::json root = parse_json(text);
+    AppConfig cfg;
+    std::string error;
+    bool ok = parse_config(root, &cfg, &error);
+    check(ok, "parse video_camera config");
+    check(cfg.mode_type == INPUT_VIDEO_CAMERA, "video_camera mode type");
+    check(cfg.sources.size() == 1, "one source parsed");
+    if (!cfg.sources.empty())
     {
-        const char* text = R"JSON(
+      const SourceConfig &src = cfg.sources.front();
+      check(src.type == INPUT_CAMERA, "source type inferred as camera");
+      check(src.format == "mjpeg", "format normalized to mjpeg");
+      check(!src.conf_threshold_set, "conf_threshold unset");
+      check(src.conf_threshold == kDefaultConfThreshold, "conf_threshold default");
+      check(!src.threads_set, "threads unset");
+      check(src.threads == 3, "threads default");
+    }
+  }
+
+  {
+    const char *text = R"JSON(
         {
           "general": {
             "mode": "video_camera",
@@ -103,17 +111,17 @@ int main()
           }
         }
         )JSON";
-        nlohmann::json root = parse_json(text);
-        AppConfig cfg;
-        std::string error;
-        bool ok = parse_config(root, &cfg, &error);
-        check(!ok, "reject conf_threshold > 1");
-        check(error.find("conf_threshold") != std::string::npos,
-              "conf_threshold error text");
-    }
+    nlohmann::json root = parse_json(text);
+    AppConfig cfg;
+    std::string error;
+    bool ok = parse_config(root, &cfg, &error);
+    check(!ok, "reject conf_threshold > 1");
+    check(error.find("conf_threshold") != std::string::npos,
+          "conf_threshold error text");
+  }
 
-    {
-        const char* text = R"JSON(
+  {
+    const char *text = R"JSON(
         {
           "general": {
             "mode": "video_camera",
@@ -133,17 +141,17 @@ int main()
           }
         }
         )JSON";
-        nlohmann::json root = parse_json(text);
-        AppConfig cfg;
-        std::string error;
-        bool ok = parse_config(root, &cfg, &error);
-        check(!ok, "reject width without height");
-        check(error.find("width") != std::string::npos,
-              "width/height error text");
-    }
+    nlohmann::json root = parse_json(text);
+    AppConfig cfg;
+    std::string error;
+    bool ok = parse_config(root, &cfg, &error);
+    check(!ok, "reject width without height");
+    check(error.find("width") != std::string::npos,
+          "width/height error text");
+  }
 
-    {
-        const char* text = R"JSON(
+  {
+    const char *text = R"JSON(
         {
           "general": {
             "mode": "video_camera",
@@ -163,21 +171,22 @@ int main()
           }
         }
         )JSON";
-        nlohmann::json root = parse_json(text);
-        AppConfig cfg;
-        std::string error;
-        bool ok = parse_config(root, &cfg, &error);
-        check(ok, "parse rtsp config");
-        check(cfg.sources.size() == 1, "one rtsp source parsed");
-        if (!cfg.sources.empty()) {
-            const SourceConfig& src = cfg.sources.front();
-            check(src.type == INPUT_RTSP, "source type inferred as rtsp");
-            check(src.format == "h264", "rtsp codec parsed");
-        }
-    }
-
+    nlohmann::json root = parse_json(text);
+    AppConfig cfg;
+    std::string error;
+    bool ok = parse_config(root, &cfg, &error);
+    check(ok, "parse rtsp config");
+    check(cfg.sources.size() == 1, "one rtsp source parsed");
+    if (!cfg.sources.empty())
     {
-        const char* text = R"JSON(
+      const SourceConfig &src = cfg.sources.front();
+      check(src.type == INPUT_RTSP, "source type inferred as rtsp");
+      check(src.format == "h264", "rtsp codec parsed");
+    }
+  }
+
+  {
+    const char *text = R"JSON(
         {
           "general": {
             "mode": "video_camera",
@@ -198,17 +207,18 @@ int main()
           }
         }
         )JSON";
-        nlohmann::json root = parse_json(text);
-        AppConfig cfg;
-        std::string error;
-        bool ok = parse_config(root, &cfg, &error);
-        check(!ok, "reject non-rtsp input for rtsp type");
-        check(error.find("rtsp source input") != std::string::npos,
-              "rtsp input error text");
-    }
+    nlohmann::json root = parse_json(text);
+    AppConfig cfg;
+    std::string error;
+    bool ok = parse_config(root, &cfg, &error);
+    check(!ok, "reject non-rtsp input for rtsp type");
+    check(error.find("rtsp source input") != std::string::npos,
+          "rtsp input error text");
+  }
 
-    if (g_failures == 0) {
-        std::printf("All app_config tests passed.\n");
-    }
-    return g_failures == 0 ? 0 : 1;
+  if (g_failures == 0)
+  {
+    std::printf("All app_config tests passed.\n");
+  }
+  return g_failures == 0 ? 0 : 1;
 }

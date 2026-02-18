@@ -55,44 +55,55 @@ if (TARGET_SOC STREQUAL "rk3576")
     message(WARNING "TARGET_SOC=rk3576: force CPU preprocessing (DISABLE_RGA)")
 endif()
 
-# ===== Third-party & utils =====
+# ===== Third-party =====
 add_subdirectory(../3rdparty 3rdparty.out)
-add_subdirectory(../utils utils.out)
 
 # 普通版本
 add_executable(demo
     app/config/app_config.cc
-    app/modes/mode_image.cc
-    app/modes/mode_video.cc
-    app/modes/mode_camera.cc
-    app/modes/mode_rtsp.cc
-    app/log/app_log.cc
+    app/app_controller.cpp
+    app/main.cpp
     app/utils/app_utils.cc
-    app/worker/app_worker.cc
-    app/worker/worker_pool.cc
-    app/pipeline/frame_pipeline.cc
-    app/runtime/video_camera_runtime.cc
-    main.cc
-    postprocess/postprocess.cc
-    v4l2_camera/v4l2_camera.cpp
-    rknpu2/yolo11.cc
+    core/log/app_log.cc
+    core/queue/result_queue.cc
+    core/pool/worker_pool.cc
+    core/pipeline/frame_pipeline.cc
+    modules/source/file_source.cc
+    modules/source/rtsp_source.cc
+    modules/source/usb_cam_source.cc
+    modules/source/mipi_source.cc
+    modules/source/source_factory.cc
+    modules/display/display_node.cc
+    modules/decode/decode_node.cc
+    modules/preprocess/preprocess_node.cc
+    modules/preprocess/image_utils.c
+    modules/inference/infer_node.cc
+    modules/inference/infer_worker.cc
+    modules/inference/infer_context.cc
+    modules/postprocess/postprocess_node.cc
     ../3rdparty/allocator/dma/dma_alloc.cpp
 )
 
 target_include_directories(demo PRIVATE
     ${LIBRKNNRT_INCLUDES}
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/app
-    ${CMAKE_CURRENT_SOURCE_DIR}/app/modes
     ${CMAKE_CURRENT_SOURCE_DIR}/app/config
-    ${CMAKE_CURRENT_SOURCE_DIR}/app/pipeline
-    ${CMAKE_CURRENT_SOURCE_DIR}/app/runtime
     ${CMAKE_CURRENT_SOURCE_DIR}/app/utils
-    ${CMAKE_CURRENT_SOURCE_DIR}/app/worker
-    ${CMAKE_CURRENT_SOURCE_DIR}/app/log
-    ${CMAKE_CURRENT_SOURCE_DIR}/postprocess
-    ${CMAKE_CURRENT_SOURCE_DIR}/v4l2_camera
-    ${CMAKE_CURRENT_SOURCE_DIR}/rknpu2/
+    ${CMAKE_CURRENT_SOURCE_DIR}/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/types
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/queue
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/pool
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/pipeline
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/log
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/source
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/display
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/decode
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/preprocess
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/inference
+    ${CMAKE_CURRENT_SOURCE_DIR}/modules/postprocess
+    ${CMAKE_CURRENT_SOURCE_DIR}/app
+    ${CMAKE_CURRENT_SOURCE_DIR}/app/config
     ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/json/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/allocator/dma
     ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/spdlog/include
@@ -101,18 +112,18 @@ target_include_directories(demo PRIVATE
     ${OpenCV_INCLUDE_DIRS}
 )
 
-target_compile_definitions(demo PRIVATE SPDLOG_HEADER_ONLY)
 if (FORCE_CPU_PREPROCESS)
     target_compile_definitions(demo PRIVATE DISABLE_RGA)
+endif()
+if (TARGET_SOC STREQUAL "rk3588")
+    target_compile_definitions(demo PRIVATE LIBRGA_IM2D_HANDLE)
 endif()
 
 target_link_libraries(demo
     PRIVATE
     ${OpenCV_LIBS}
     ${LIBJPEG}
-    imageutils
-    fileutils
-    imagedrawing
+    ${LIBRGA}
     rknnrt
     dl
     Threads::Threads
@@ -133,9 +144,7 @@ target_link_libraries(demo
 #     app/pipeline/frame_pipeline.cc
 #     app/runtime/video_camera_runtime.cc
 #     main.cc
-#     postprocess/postprocess.cc
-#     v4l2_camera/v4l2_camera.cpp
-#     rknpu2/yolo11_zero_copy.cc
+#     modules/inference/infer_context.cc
 # )
 
 # target_compile_definitions(demo_zero_copy PRIVATE ZERO_COPY)
@@ -146,9 +155,9 @@ target_link_libraries(demo
 #     ${CMAKE_CURRENT_SOURCE_DIR}/app/config
 #     ${CMAKE_CURRENT_SOURCE_DIR}/app/pipeline
 #     ${CMAKE_CURRENT_SOURCE_DIR}/app/runtime
-#     ${CMAKE_CURRENT_SOURCE_DIR}/postprocess
-#     ${CMAKE_CURRENT_SOURCE_DIR}/v4l2_camera
-#     ${CMAKE_CURRENT_SOURCE_DIR}/rknpu2
+#     ${CMAKE_CURRENT_SOURCE_DIR}/modules/postprocess
+#     ${CMAKE_CURRENT_SOURCE_DIR}/modules/source
+#     ${CMAKE_CURRENT_SOURCE_DIR}/modules/inference
 #     ${LIBRKNNRT_INCLUDES}
 #     ${LIBRGA_INCLUDES}
 #     ${OpenCV_INCLUDE_DIRS}
@@ -156,9 +165,7 @@ target_link_libraries(demo
 
 # target_link_libraries(demo_zero_copy
 #     ${OpenCV_LIBS}
-#     imageutils
-#     fileutils
-#     imagedrawing
+#     ${LIBRGA}
 #     ${LIBRKNNRT}
 #     dl
 #     Threads::Threads
