@@ -22,25 +22,25 @@
 
 namespace {
 
+// 尝试重新连接至输入
 constexpr int kReconnectMaxAttempts = 10;
 const auto kReconnectBaseDelay = std::chrono::milliseconds(200);
 const auto kReconnectMaxDelay = std::chrono::milliseconds(5000);
 
-struct SourceRuntime {
-    // 单路输入运行时上下文：配置、组件句柄与统计信息都在这里维护。
-    SourceConfig cfg;
-    std::string window_name;
+// 单路输入运行时上下文：配置、组件句柄与统计信息都在这里维护。
+struct SourceRuntime {    
+    SourceConfig cfg; // 配置
+    std::string window_name; // 窗口名称，在cfg读取得到
     WorkerPool pool;
     RunReport report{};
-    std::thread th;
+    std::thread th; // 处理此路的主线程
     std::unique_ptr<modules::source::SourceBase> source;
     modules::display::DisplayNode display;
     bool init_ok = false;
-    bool is_rtsp = false;
 };
 
+// 在单路线程内累计的轻量统计，结束后写入报告。
 struct SourceMetrics {
-    // 在单路线程内累计的轻量统计，结束后写入报告。
     int total_frames = 0;
     int total_detections = 0;
     double total_infer_ms = 0.0;
@@ -48,8 +48,8 @@ struct SourceMetrics {
     int input_height = 0;
 };
 
+// 多路汇总后的统计结构，用来生成最终 RunReport。
 struct AggregatedReport {
-    // 多路汇总后的统计结构，用来生成最终 RunReport。
     bool any_ok = false;
     int total_frames = 0;
     int total_detections = 0;
@@ -65,12 +65,15 @@ void init_source_report(SourceRuntime* runtime)
         return;
 
     runtime->report = RunReport{};
-    runtime->report.type = runtime->is_rtsp ? INPUT_RTSP : runtime->cfg.type;
+    runtime->report.type = runtime->cfg.type;
     runtime->report.threads_use = runtime->cfg.threads;
-    runtime->report.output_path = "No out";
+    runtime->report.output_path = "No out"; // Todo: 保存一段时间内的录像
     runtime->report.ok = false;
 }
 
+/*
+    在窗口上显示错误画面
+*/
 void show_source_error(SourceRuntime* runtime, const std::string& message)
 {
     if (!runtime)
@@ -85,7 +88,7 @@ bool reconnect_source(SourceRuntime* runtime,
                       const std::string& input_desc,
                       const char* reason)
 {
-    // 重连使用指数退避，兼顾瞬时故障恢复与避免高频重试。
+    // 重连使用指数退避
     if (!runtime || !runtime->source)
         return false;
 
@@ -125,6 +128,9 @@ bool reconnect_source(SourceRuntime* runtime,
     return false;
 }
 
+/*
+    显示就绪帧，返回是否出错退出程序
+*/
 bool handle_ready_frame(SourceRuntime* runtime,
                         FrameResult* ready,
                         FpsTracker* fps_tracker,
@@ -147,6 +153,9 @@ bool handle_ready_frame(SourceRuntime* runtime,
     return exit_pressed;
 }
 
+/*
+    处理停止输入后的主干网络中的剩余帧
+*/
 bool drain_pipeline(SourceRuntime* runtime,
                     FramePipeline* pipeline,
                     FpsTracker* fps_tracker,
@@ -195,9 +204,12 @@ void finalize_source_report(SourceRuntime* runtime,
     runtime->report.ok = source_ok && (got_frame || stop_requested());
 }
 
+/*
+    每路输入独立线程运行，并独占一个流水线实例。
+*/
 bool run_single_source(SourceRuntime* runtime)
 {
-    // 每路输入独立线程运行，并独占一个流水线实例。
+    
     if (!runtime || !runtime->source)
         return false;
 
@@ -221,8 +233,6 @@ bool run_single_source(SourceRuntime* runtime)
     }
     auto next_frame_time = std::chrono::steady_clock::now();
 
-    cv::Mat resized;
-
     if (!runtime->source->Open())
     {
         if (!reconnect_source(runtime, runtime->cfg.input, "open failed"))
@@ -235,8 +245,8 @@ bool run_single_source(SourceRuntime* runtime)
         }
     }
 
-    // Frame data flow per source:
-    //   SourceBase::Read -> DecodeNode -> FramePipeline(infer workers) -> DisplayNode
+    // 每一路的帧处理流
+    // SourceBase::Read -> DecodeNode -> FramePipeline(多线程 infer workers：src/modules/inference/infer_worker.cc) -> DisplayNode
     while (source_ok && !stop_requested())
     {
         if (runtime->cfg.fps > 0.0)
@@ -244,11 +254,13 @@ bool run_single_source(SourceRuntime* runtime)
             const auto now = std::chrono::steady_clock::now();
             if (now < next_frame_time)
             {
+                // 如果没到的时间就sleep，不获取最新帧，用于限制最大帧率
                 std::this_thread::sleep_until(next_frame_time);
             }
             next_frame_time = std::chrono::steady_clock::now() + frame_interval;
         }
 
+        // SourceBase::Read
         modules::source::SourceFrame input_frame;
         if (!runtime->source->Read(&input_frame))
         {
@@ -266,6 +278,7 @@ bool run_single_source(SourceRuntime* runtime)
             continue;
         }
 
+        // DecodeNode
         cv::Mat decoded;
         if (!decode_node.Decode(input_frame, &decoded) || decoded.empty())
         {
@@ -282,36 +295,33 @@ bool run_single_source(SourceRuntime* runtime)
             continue;
         }
 
-        got_frame = true;
+        got_frame = true; // 得到至少一个有效帧，用于验证此路是否初始化成功
         const cv::Mat* use_frame = &decoded;
-        // 相机与 MIPI 默认保持原始分辨率；其余来源可按配置缩放以统一负载。
-        const bool allow_resize =
-            (runtime->cfg.type != INPUT_CAMERA && !modules::source::IsMipiSource(runtime->cfg));
-        if (allow_resize && runtime->cfg.width > 0 && runtime->cfg.height > 0 &&
-            (decoded.cols != runtime->cfg.width || decoded.rows != runtime->cfg.height))
-        {
-            cv::resize(decoded, resized, cv::Size(runtime->cfg.width, runtime->cfg.height));
-            use_frame = &resized;
-        }
 
+        // 更新帧的实际尺寸
         if (metrics.input_width == 0 && metrics.input_height == 0)
         {
             metrics.input_width = use_frame->cols;
             metrics.input_height = use_frame->rows;
         }
 
+        // 多线程功能，生产者-多消费者，多生产者-单消费者
+        // 每一路的主线程不断将帧放入生产队列，workerpool中worker从队列中取出一帧进行处理，随后将处理后的帧放到就绪队列
+        // worker内部逻辑见src/modules/inference/infer_worker.cc
         // 入队前先做容量控制，限制队列深度以控制时延和内存。
         pipeline.WaitForCapacity();
         pipeline.EnqueueFrame(*use_frame, input_frame.capture_tp);
 
+        // DisplayNode
         FrameResult ready;
-        if (pipeline.PopReady(&ready))
+        if (pipeline.PopReady(&ready)) // 弹出就绪帧
         {
-            if (handle_ready_frame(runtime, &ready, &fps_tracker, &metrics))
+            if (handle_ready_frame(runtime, &ready, &fps_tracker, &metrics)) // 显示
                 break;
         }
     }
 
+    // 收到结束信号后的操作
     drain_pipeline(runtime, &pipeline, &fps_tracker, &metrics);
 
     const auto run_t1 = std::chrono::steady_clock::now();
@@ -325,15 +335,16 @@ bool run_single_source(SourceRuntime* runtime)
     return source_ok;
 }
 
+/*
+    初始化单路的运行时环境
+*/
 std::unique_ptr<SourceRuntime> build_runtime(const SourceConfig& source_cfg,
                                              const char* model_path)
 {
     auto runtime = std::make_unique<SourceRuntime>();
     runtime->cfg = source_cfg;
-    runtime->window_name = "dock_blindspot - " + source_cfg.name;
-    runtime->is_rtsp = (source_cfg.type == INPUT_RTSP) ||
-                       modules::source::IsRtspInput(source_cfg.input);
-    runtime->source = modules::source::BuildSource(source_cfg);
+    runtime->window_name = "dock_blindspot - " + source_cfg.name;  // Todo：窗口名字也可以在config.json中配置
+    runtime->source = modules::source::BuildSource(runtime->cfg); // 为每一路输入创建一个指针
     init_source_report(runtime.get());
 
     if (!runtime->source)
@@ -344,6 +355,7 @@ std::unique_ptr<SourceRuntime> build_runtime(const SourceConfig& source_cfg,
         return runtime;
     }
 
+    // 初始化此路的线程池
     if (!init_worker_pool(model_path,
                           source_cfg.threads,
                           static_cast<float>(source_cfg.conf_threshold),
@@ -365,9 +377,11 @@ std::unique_ptr<SourceRuntime> build_runtime(const SourceConfig& source_cfg,
     return runtime;
 }
 
+/*
+    为每个初始化成功的输入源启动一个处理线程。
+*/
 void launch_source_threads(std::vector<std::unique_ptr<SourceRuntime>>* runtimes)
 {
-    // 为每个初始化成功的输入源启动一个处理线程。
     if (!runtimes)
         return;
 
@@ -388,6 +402,9 @@ void launch_source_threads(std::vector<std::unique_ptr<SourceRuntime>>* runtimes
     }
 }
 
+/*
+    等待所有 runtime 的主线程退出
+*/
 void join_source_threads(std::vector<std::unique_ptr<SourceRuntime>>* runtimes)
 {
     if (!runtimes)
@@ -400,6 +417,9 @@ void join_source_threads(std::vector<std::unique_ptr<SourceRuntime>>* runtimes)
     }
 }
 
+/*
+    通知每个 runtime 的 worker 线程池停止工作。
+*/
 void stop_runtime_pools(std::vector<std::unique_ptr<SourceRuntime>>* runtimes)
 {
     if (!runtimes)
@@ -412,9 +432,11 @@ void stop_runtime_pools(std::vector<std::unique_ptr<SourceRuntime>>* runtimes)
     }
 }
 
+/*
+    把各输入源报告合并为全局统计。
+*/
 AggregatedReport aggregate_reports(const std::vector<std::unique_ptr<SourceRuntime>>& runtimes)
 {
-    // 把各输入源报告合并为全局统计。
     AggregatedReport agg;
 
     for (const auto& rt : runtimes)
@@ -471,27 +493,18 @@ bool AppController::Run(const AppConfig& cfg,
     if (source_reports)
         source_reports->clear();
 
-    if (cfg.mode_type != INPUT_VIDEO_CAMERA)
-    {
-        LOGE("mode_image is removed, only video_camera mode is supported\n");
-        return false;
-    }
-
     if (cfg.sources.empty())
     {
         LOGE("config missing sources\n");
         return false;
     }
 
-    // AppController::Run only orchestrates stages:
-    // 1) source + inference worker init
-    // 2) per-source processing thread run
-    // 3) join + stop workers
-    // 4) aggregate source reports into global report
     std::vector<std::unique_ptr<SourceRuntime>> runtimes;
     runtimes.reserve(cfg.sources.size());
 
     bool any_init_ok = false;
+
+    // 依次为每一路创建运行时环境
     for (const auto& source_cfg : cfg.sources)
     {
         auto runtime = build_runtime(source_cfg, model_path);
@@ -505,9 +518,9 @@ bool AppController::Run(const AppConfig& cfg,
         LOGE("all sources failed to initialize\n");
     }
 
-    launch_source_threads(&runtimes);
-    join_source_threads(&runtimes);
-    stop_runtime_pools(&runtimes);
+    launch_source_threads(&runtimes); // 依次启动每一路
+    join_source_threads(&runtimes); // 等待所有结束
+    stop_runtime_pools(&runtimes); // 后续清理工作
 
     const AggregatedReport agg = aggregate_reports(runtimes);
 

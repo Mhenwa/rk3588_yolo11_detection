@@ -6,6 +6,8 @@
 
 namespace
 {
+    //以下是对每一项的具体解析
+
     using json = nlohmann::json;
 
     bool set_error(std::string *error, const std::string &message)
@@ -27,16 +29,41 @@ namespace
         return value;
     }
 
-    bool starts_with(const std::string &value, const std::string &prefix)
+    bool parse_source_type(const std::string& raw,
+                           InputType* out,
+                           const std::string& context,
+                           std::string* error)
     {
-        return value.size() >= prefix.size() &&
-               value.compare(0, prefix.size(), prefix) == 0;
-    }
+        if (!out)
+        {
+            return set_error(error, "internal error: source type output missing");
+        }
 
-    bool is_rtsp_url(const std::string &input)
-    {
-        std::string lower = to_lower(input);
-        return starts_with(lower, "rtsp://") || starts_with(lower, "rtsps://");
+        std::string type = to_lower(raw);
+        if (type == "video")
+        {
+            *out = INPUT_VIDEO;
+            return true;
+        }
+        if (type == "rtsp")
+        {
+            *out = INPUT_RTSP;
+            return true;
+        }
+        if (type == "mipi_camera")
+        {
+            *out = INPUT_MIPI_CAMERA;
+            return true;
+        }
+        if (type == "usb_camera")
+        {
+            *out = INPUT_USB_CAMERA;
+            return true;
+        }
+        return set_error(error,
+                         "invalid source type in " + context +
+                             ": " + raw +
+                             " (expected video|rtsp|mipi_camera|usb_camera)");
     }
 
     bool read_required_string(const json &obj,
@@ -384,53 +411,14 @@ bool parse_config(const nlohmann::json &root,
         }
 
         std::string type_value;
-        auto type_it = source_json.find("type");
-        if (type_it != source_json.end())
+        if (!read_required_string(source_json, "type",
+                                  &type_value, source_context, error))
         {
-            if (!type_it->is_string())
-            {
-                return set_error(error, "config " + source_context + ".type must be string");
-            }
-            type_value = to_lower(type_it->get<std::string>());
+            return false;
         }
-        if (type_value.empty())
+        if (!parse_source_type(type_value, &source.type, source_context, error))
         {
-            std::string lower = to_lower(source.name);
-            if (lower.rfind("video.", 0) == 0)
-            {
-                type_value = "video";
-            }
-            else if (lower.rfind("camera.", 0) == 0 ||
-                     lower.rfind("usb.", 0) == 0 ||
-                     lower.rfind("mipi.", 0) == 0)
-            {
-                type_value = "camera";
-            }
-            else if (lower.rfind("rtsp.", 0) == 0 || is_rtsp_url(source.input))
-            {
-                type_value = "rtsp";
-            }
-            else
-            {
-                return set_error(error, "invalid source type in " + source_context);
-            }
-        }
-        if (type_value == "video")
-        {
-            source.type = INPUT_VIDEO;
-        }
-        else if (type_value == "camera")
-        {
-            source.type = INPUT_CAMERA;
-        }
-        else if (type_value == "rtsp")
-        {
-            source.type = INPUT_RTSP;
-        }
-        else
-        {
-            return set_error(error, "invalid source type in " + source_context +
-                                        ": " + type_value);
+            return false;
         }
         if (!read_int_optional(source_json, "threads", &source.threads,
                                &source.threads_set, source_context, error))
@@ -458,7 +446,7 @@ bool parse_config(const nlohmann::json &root,
         {
             return false;
         }
-        if (source.type == INPUT_CAMERA)
+        if (source.type == INPUT_USB_CAMERA || source.type == INPUT_MIPI_CAMERA)
         {
             if (source.format != "auto" && source.format != "mjpeg" &&
                 source.format != "yuyv" && source.format != "nv12")
@@ -470,12 +458,6 @@ bool parse_config(const nlohmann::json &root,
         }
         else if (source.type == INPUT_RTSP)
         {
-            if (!is_rtsp_url(source.input))
-            {
-                return set_error(error,
-                                 "rtsp source input must start with rtsp:// or rtsps:// in " +
-                                     source_context);
-            }
             if (source.format != "auto" && source.format != "h264" &&
                 source.format != "h265")
             {

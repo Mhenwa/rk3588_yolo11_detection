@@ -1,11 +1,10 @@
 #include "modules/source/source_factory.h"
 
-#include <algorithm>
-#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 
+#include "app/utils/app_utils.h"
 #include "modules/source/file_source.h"
 #include "modules/source/mipi_source.h"
 #include "modules/source/rtsp_source.h"
@@ -13,37 +12,6 @@
 
 namespace
 {
-
-    bool starts_with(const std::string &value, const std::string &prefix)
-    {
-        return value.size() >= prefix.size() &&
-               value.compare(0, prefix.size(), prefix) == 0;
-    }
-
-    std::string to_lower(std::string value)
-    {
-        std::transform(value.begin(), value.end(), value.begin(),
-                       [](unsigned char ch)
-                       {
-                           return static_cast<char>(std::tolower(ch));
-                       });
-        return value;
-    }
-
-    bool is_number_str(const char *s)
-    {
-        if (!s || *s == '\0')
-            return false;
-        for (const char *p = s; *p; ++p)
-        {
-            if (!std::isdigit(static_cast<unsigned char>(*p)))
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
     std::string normalize_camera_input(const std::string &input)
     {
         if (is_number_str(input.c_str()))
@@ -63,25 +31,9 @@ namespace modules
     namespace source
     {
 
-        bool IsRtspInput(const std::string &input)
-        {
-            std::string lower = to_lower(input);
-            return starts_with(lower, "rtsp://") || starts_with(lower, "rtsps://");
-        }
-
-        bool IsMipiSource(const SourceConfig &source)
-        {
-            std::string lower_name = to_lower(source.name);
-            std::string lower_input = to_lower(source.input);
-            return starts_with(lower_name, "mipi.") ||
-                   lower_input.find("mipi") != std::string::npos ||
-                   lower_input.find("rkisp") != std::string::npos;
-        }
-
         std::unique_ptr<SourceBase> BuildSource(const SourceConfig &source)
         {
-            const bool rtsp = (source.type == INPUT_RTSP) || IsRtspInput(source.input);
-            if (rtsp)
+            if (source.type == INPUT_RTSP)
             {
                 return std::make_unique<RtspSource>(source.input, source.format);
             }
@@ -92,15 +44,20 @@ namespace modules
             }
 
             const std::string device = normalize_camera_input(source.input);
-            if (IsMipiSource(source))
+            if (source.type == INPUT_MIPI_CAMERA)
             {
                 return std::make_unique<MipiSource>(
                     device, source.width, source.height, source.buffers,
                     source.fps, source.format);
             }
-            return std::make_unique<UsbCamSource>(
-                device, source.width, source.height, source.buffers,
-                source.fps, source.format);
+
+            if (source.type == INPUT_USB_CAMERA)
+            {
+                return std::make_unique<UsbCamSource>(
+                    device, source.width, source.height, source.buffers,
+                    source.fps, source.format);
+            }
+            return nullptr;
         }
 
     } // namespace source

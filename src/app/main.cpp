@@ -33,6 +33,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    // 解析config
     AppConfig cfg;
     std::string error;
     if (!load_config(config_path, &cfg, &error)) {
@@ -53,11 +54,13 @@ int main(int argc, char **argv)
     report.threads_use = 1;
     std::vector<SourceRunReport> source_reports;
 
+    // 后处理初始化失败直接弹出报告
     if (init_post_process(label_path) != 0) {
         print_run_report(report, &source_reports);
         return -1;
     }
 
+    // 进入主逻辑
     AppController controller;
     controller.Run(cfg, model_path, &report, &source_reports);
 

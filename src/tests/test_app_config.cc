@@ -34,6 +34,7 @@ int main()
               "sources": [
                 {
                   "name": "video.0",
+                  "type": "video",
                   "input": "video.mp4"
                 }
               ]
@@ -63,6 +64,7 @@ int main()
               "sources": [
                 {
                   "name": "camera.0",
+                  "type": "usb_camera",
                   "input": "/dev/video0",
                   "format": "mjpg"
                 }
@@ -81,7 +83,7 @@ int main()
     if (!cfg.sources.empty())
     {
       const SourceConfig &src = cfg.sources.front();
-      check(src.type == INPUT_CAMERA, "source type inferred as camera");
+      check(src.type == INPUT_USB_CAMERA, "source type parsed as usb_camera");
       check(src.format == "mjpeg", "format normalized to mjpeg");
       check(!src.conf_threshold_set, "conf_threshold unset");
       check(src.conf_threshold == kDefaultConfThreshold, "conf_threshold default");
@@ -103,6 +105,7 @@ int main()
               "sources": [
                 {
                   "name": "camera.0",
+                  "type": "usb_camera",
                   "input": "/dev/video0",
                   "conf_threshold": 1.5
                 }
@@ -133,6 +136,7 @@ int main()
               "sources": [
                 {
                   "name": "camera.0",
+                  "type": "usb_camera",
                   "input": "/dev/video0",
                   "width": 640
                 }
@@ -163,6 +167,7 @@ int main()
               "sources": [
                 {
                   "name": "rtsp.0",
+                  "type": "rtsp",
                   "input": "rtsp://127.0.0.1:8554/test",
                   "format": "h264"
                 }
@@ -180,7 +185,7 @@ int main()
     if (!cfg.sources.empty())
     {
       const SourceConfig &src = cfg.sources.front();
-      check(src.type == INPUT_RTSP, "source type inferred as rtsp");
+      check(src.type == INPUT_RTSP, "source type parsed as rtsp");
       check(src.format == "h264", "rtsp codec parsed");
     }
   }
@@ -211,9 +216,42 @@ int main()
     AppConfig cfg;
     std::string error;
     bool ok = parse_config(root, &cfg, &error);
-    check(!ok, "reject non-rtsp input for rtsp type");
-    check(error.find("rtsp source input") != std::string::npos,
-          "rtsp input error text");
+    check(ok, "allow any input string for rtsp type");
+    check(cfg.sources.size() == 1, "one source parsed");
+    if (!cfg.sources.empty())
+    {
+      check(cfg.sources.front().type == INPUT_RTSP, "rtsp type kept");
+    }
+  }
+
+  {
+    const char *text = R"JSON(
+        {
+          "general": {
+            "mode": "video_camera",
+            "label": "labels.txt",
+            "model_path": "model.rknn"
+          },
+          "modes": {
+            "video_camera": {
+              "sources": [
+                {
+                  "name": "camera.0",
+                  "type": "camera",
+                  "input": "/dev/video0"
+                }
+              ]
+            }
+          }
+        }
+        )JSON";
+    nlohmann::json root = parse_json(text);
+    AppConfig cfg;
+    std::string error;
+    bool ok = parse_config(root, &cfg, &error);
+    check(!ok, "reject legacy camera type");
+    check(error.find("video|rtsp|mipi_camera|usb_camera") != std::string::npos,
+          "type enum error text");
   }
 
   if (g_failures == 0)

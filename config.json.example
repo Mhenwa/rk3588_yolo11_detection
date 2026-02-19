@@ -12,7 +12,7 @@
       "sources": [
         {
           "name": "camera.0",
-          "type": "camera",
+          "type": "usb_camera",
           "input": "/dev/video20",
           "threads": 1,
           "width": 1920,
@@ -24,7 +24,7 @@
         },
         {
           "name": "camera.1",
-          "type": "camera",
+          "type": "usb_camera",
           "input": "/dev/video24",
           "threads": 1,
           "width": 1920,
@@ -36,7 +36,7 @@
         },
         {
           "name": "camera.2",
-          "type": "camera",
+          "type": "usb_camera",
           "input": "/dev/video22",
           "threads": 1,
           "width": 1920,

@@ -4,11 +4,12 @@
 #include <string>
 
 enum InputType {
-    INPUT_IMAGE,
+    INPUT_IMAGE, // 废弃
     INPUT_VIDEO,
-    INPUT_CAMERA,
+    INPUT_USB_CAMERA,
+    INPUT_MIPI_CAMERA,
     INPUT_RTSP,
-    INPUT_VIDEO_CAMERA
+    INPUT_VIDEO_CAMERA // 废弃
 };
 
 struct RunReport {

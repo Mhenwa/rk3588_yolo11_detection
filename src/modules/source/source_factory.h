@@ -12,9 +12,6 @@ namespace modules
     namespace source
     {
 
-        bool IsRtspInput(const std::string &input);
-        bool IsMipiSource(const SourceConfig &source);
-
         std::unique_ptr<SourceBase> BuildSource(const SourceConfig &source);
 
     } // namespace source
