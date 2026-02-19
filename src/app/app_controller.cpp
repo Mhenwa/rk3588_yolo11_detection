@@ -27,6 +27,7 @@ const auto kReconnectBaseDelay = std::chrono::milliseconds(200);
 const auto kReconnectMaxDelay = std::chrono::milliseconds(5000);
 
 struct SourceRuntime {
+    // 单路输入运行时上下文：配置、组件句柄与统计信息都在这里维护。
     SourceConfig cfg;
     std::string window_name;
     WorkerPool pool;
@@ -39,6 +40,7 @@ struct SourceRuntime {
 };
 
 struct SourceMetrics {
+    // 在单路线程内累计的轻量统计，结束后写入报告。
     int total_frames = 0;
     int total_detections = 0;
     double total_infer_ms = 0.0;
@@ -47,6 +49,7 @@ struct SourceMetrics {
 };
 
 struct AggregatedReport {
+    // 多路汇总后的统计结构，用来生成最终 RunReport。
     bool any_ok = false;
     int total_frames = 0;
     int total_detections = 0;
@@ -82,6 +85,7 @@ bool reconnect_source(SourceRuntime* runtime,
                       const std::string& input_desc,
                       const char* reason)
 {
+    // 重连使用指数退避，兼顾瞬时故障恢复与避免高频重试。
     if (!runtime || !runtime->source)
         return false;
 
@@ -193,6 +197,7 @@ void finalize_source_report(SourceRuntime* runtime,
 
 bool run_single_source(SourceRuntime* runtime)
 {
+    // 每路输入独立线程运行，并独占一个流水线实例。
     if (!runtime || !runtime->source)
         return false;
 
@@ -279,6 +284,7 @@ bool run_single_source(SourceRuntime* runtime)
 
         got_frame = true;
         const cv::Mat* use_frame = &decoded;
+        // 相机与 MIPI 默认保持原始分辨率；其余来源可按配置缩放以统一负载。
         const bool allow_resize =
             (runtime->cfg.type != INPUT_CAMERA && !modules::source::IsMipiSource(runtime->cfg));
         if (allow_resize && runtime->cfg.width > 0 && runtime->cfg.height > 0 &&
@@ -294,6 +300,7 @@ bool run_single_source(SourceRuntime* runtime)
             metrics.input_height = use_frame->rows;
         }
 
+        // 入队前先做容量控制，限制队列深度以控制时延和内存。
         pipeline.WaitForCapacity();
         pipeline.EnqueueFrame(*use_frame, input_frame.capture_tp);
 
@@ -360,6 +367,7 @@ std::unique_ptr<SourceRuntime> build_runtime(const SourceConfig& source_cfg,
 
 void launch_source_threads(std::vector<std::unique_ptr<SourceRuntime>>* runtimes)
 {
+    // 为每个初始化成功的输入源启动一个处理线程。
     if (!runtimes)
         return;
 
@@ -406,6 +414,7 @@ void stop_runtime_pools(std::vector<std::unique_ptr<SourceRuntime>>* runtimes)
 
 AggregatedReport aggregate_reports(const std::vector<std::unique_ptr<SourceRuntime>>& runtimes)
 {
+    // 把各输入源报告合并为全局统计。
     AggregatedReport agg;
 
     for (const auto& rt : runtimes)

@@ -9,6 +9,7 @@
 
 class FramePipeline {
 public:
+    // 流水线通过单调递增的序号，把异步推理线程的结果重新整理为有序输出。
     FramePipeline(std::vector<std::unique_ptr<Worker>>* workers,
                   ResultQueue* result_queue);
 
@@ -21,15 +22,19 @@ public:
     int in_flight() const { return in_flight_; }
 
 private:
+    // 共享的 worker 池与结果队列，由 AppController/WorkerPool 统一管理。
     std::vector<std::unique_ptr<Worker>>* workers_;
     ResultQueue* result_queue_;
+    // 乱序返回的结果先暂存到这里，等 next_seq_ 对应结果到达再输出。
     std::map<int, FrameResult> pending_;
+
+    // worker 调度与在途任务（in-flight）状态。
     int worker_count_;
-    int seq_;
-    int next_seq_;
-    int in_flight_;
-    int max_in_flight_;
-    int infer_rr_;
+    int seq_;          // 帧进入流水线时分配的序号。
+    int next_seq_;     // 输出侧当前期望的下一个序号。
+    int in_flight_;    // 已提交但尚未被完整消费的结果数量。
+    int max_in_flight_; // 背压上限，用于控制内存占用与端到端延迟。
+    int infer_rr_;     // 轮询分发时目标 worker 的索引。
 };
 
 #endif  // CORE_PIPELINE_FRAME_PIPELINE_H_
