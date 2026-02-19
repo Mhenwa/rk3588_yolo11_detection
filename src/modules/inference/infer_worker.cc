@@ -9,6 +9,7 @@
 
 void infer_worker_loop(Worker *worker, ResultQueue *results)
 {
+    // 每个 worker 线程各自持有节点实例，避免跨线程共享可变状态。
     modules::preprocess::PreprocessNode preprocess_node;
     modules::inference::InferNode infer_node;
     modules::postprocess::PostprocessNode postprocess_node;
@@ -17,6 +18,7 @@ void infer_worker_loop(Worker *worker, ResultQueue *results)
     {
         FrameTask task;
         {
+            // worker 在此等待：要么收到停止信号，要么拿到待处理帧任务。
             std::unique_lock<std::mutex> lk(worker->mtx);
             worker->cv.wait(lk, [&]
                             { return worker->stop || !worker->tasks.empty(); });
@@ -37,6 +39,7 @@ void infer_worker_loop(Worker *worker, ResultQueue *results)
 
         if (task.do_infer)
         {
+            // 标准流程：预处理 -> NPU 推理 -> 后处理（框解码与叠加绘制）。
             modules::preprocess::PreprocessOutput preprocess_out;
             if (preprocess_node.Run(res.frame, worker->ctx, &preprocess_out))
             {
@@ -58,6 +61,7 @@ void infer_worker_loop(Worker *worker, ResultQueue *results)
         }
 
         {
+            // 把处理完成的帧写回结果队列，后续由 FramePipeline 做有序合并。
             std::lock_guard<std::mutex> lk(results->mtx);
             results->items.push_back(std::move(res));
         }
