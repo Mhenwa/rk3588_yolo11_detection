@@ -1,7 +1,5 @@
 #include "modules/source/usb_cam_source.h"
 
-#include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -17,6 +15,7 @@
 #include <unistd.h>
 
 #include "core/log/app_log.h"
+#include "core/utils/string_utils.h"
 
 namespace modules
 {
@@ -27,6 +26,7 @@ namespace modules
         {
             constexpr int kFallbackWidth = 640;
             constexpr int kFallbackHeight = 480;
+            constexpr int kDefaultCameraBufferCount = 4;
 
             void log_errno(const char *action)
             {
@@ -44,15 +44,6 @@ namespace modules
                 return std::string(fourcc);
             }
 
-            std::string to_lower(std::string value)
-            {
-                std::transform(value.begin(), value.end(), value.begin(),
-                               [](unsigned char ch)
-                               {
-                                   return static_cast<char>(std::tolower(ch));
-                               });
-                return value;
-            }
         } // namespace
 
         class UsbV4L2Camera
@@ -66,8 +57,7 @@ namespace modules
                           int height,
                           int buffer_count,
                           double target_fps,
-                          std::string format,
-                          bool allow_format_fallback);
+                          std::string format);
             ~UsbV4L2Camera();
 
             bool init();
@@ -91,10 +81,8 @@ namespace modules
             int buffer_count_;
             double target_fps_;
             std::string format_;
-            bool allow_format_fallback_;
             double actual_fps_;
             bool streaming_;
-            bool jpeg_supported_;
             uint32_t pixel_format_;
             std::vector<V4L2Buffer> buffers_;
         };
@@ -104,8 +92,7 @@ namespace modules
                                      int height,
                                      int buffer_count,
                                      double target_fps,
-                                     std::string format,
-                                     bool allow_format_fallback)
+                                     std::string format)
             : fd_(-1),
               device_(std::move(device)),
               width_(width),
@@ -115,10 +102,8 @@ namespace modules
               buffer_count_(buffer_count),
               target_fps_(target_fps),
               format_(std::move(format)),
-              allow_format_fallback_(allow_format_fallback),
               actual_fps_(0.0),
               streaming_(false),
-              jpeg_supported_(true),
               pixel_format_(0)
         {
         }
@@ -169,7 +154,7 @@ namespace modules
                 return false;
             }
 
-            std::string desired_format = to_lower(format_);
+            std::string desired_format = core::utils::to_lower(format_);
             if (desired_format == "mjpg")
                 desired_format = "mjpeg";
             if (desired_format.empty())
@@ -177,52 +162,25 @@ namespace modules
             const bool format_auto = desired_format == "auto";
             const bool want_mjpeg = desired_format == "mjpeg";
             const bool want_yuyv = desired_format == "yuyv";
-            const bool want_nv12 = desired_format == "nv12";
-            if (!format_auto && !want_mjpeg && !want_yuyv && !want_nv12)
+            if (!format_auto && !want_mjpeg && !want_yuyv)
             {
                 LOGE("Unsupported USB format requested: %s\n", format_.c_str());
                 return false;
             }
 
-            auto push_unique = [](std::vector<uint32_t> *list, uint32_t fmt)
-            {
-                if (std::find(list->begin(), list->end(), fmt) == list->end())
-                {
-                    list->push_back(fmt);
-                }
-            };
-            auto add_auto_formats = [&](std::vector<uint32_t> *list)
-            {
-                push_unique(list, V4L2_PIX_FMT_MJPEG);
-                push_unique(list, V4L2_PIX_FMT_YUYV);
-                push_unique(list, V4L2_PIX_FMT_NV12);
-            };
-
             std::vector<uint32_t> capture_formats;
             if (format_auto)
             {
-                add_auto_formats(&capture_formats);
+                capture_formats.push_back(V4L2_PIX_FMT_MJPEG);
+                capture_formats.push_back(V4L2_PIX_FMT_YUYV);
             }
             else if (want_mjpeg)
             {
-                if (jpeg_supported_)
-                {
-                    push_unique(&capture_formats, V4L2_PIX_FMT_MJPEG);
-                }
-                if (allow_format_fallback_)
-                    add_auto_formats(&capture_formats);
+                capture_formats.push_back(V4L2_PIX_FMT_MJPEG);
             }
-            else if (want_yuyv)
+            else
             {
-                push_unique(&capture_formats, V4L2_PIX_FMT_YUYV);
-                if (allow_format_fallback_)
-                    add_auto_formats(&capture_formats);
-            }
-            else if (want_nv12)
-            {
-                push_unique(&capture_formats, V4L2_PIX_FMT_NV12);
-                if (allow_format_fallback_)
-                    add_auto_formats(&capture_formats);
+                capture_formats.push_back(V4L2_PIX_FMT_YUYV);
             }
 
             auto try_set_capture = [&](uint32_t pixfmt, int width, int height) -> bool
@@ -247,10 +205,7 @@ namespace modules
             {
                 for (size_t i = 0; i < capture_formats.size(); ++i)
                 {
-                    const uint32_t fmt = capture_formats[i];
-                    if (fmt == V4L2_PIX_FMT_MJPEG && !jpeg_supported_)
-                        continue;
-                    if (try_set_capture(fmt, width, height))
+                    if (try_set_capture(capture_formats[i], width, height))
                         return true;
                 }
                 return false;
@@ -491,23 +446,6 @@ namespace modules
                     frame->format = SourceFrameFormat::kYuyv;
                 }
             }
-            else if (pixel_format_ == V4L2_PIX_FMT_NV12)
-            {
-                const size_t expected =
-                    static_cast<size_t>(frame_height_) *
-                    static_cast<size_t>(frame_width_) * 3 / 2;
-                const size_t used = buf.bytesused > 0 ? static_cast<size_t>(buf.bytesused) : expected;
-                if (used < expected)
-                {
-                    LOGE("NV12 bytesused too small: %zu < %zu\n", used, expected);
-                    ok = false;
-                }
-                else
-                {
-                    frame->data.assign(data, data + expected);
-                    frame->format = SourceFrameFormat::kNv12;
-                }
-            }
             else
             {
                 LOGE("Unsupported capture format: %s\n",
@@ -527,13 +465,11 @@ namespace modules
         UsbCamSource::UsbCamSource(std::string device,
                                    int width,
                                    int height,
-                                   int buffers,
                                    double fps,
                                    std::string format)
             : device_(std::move(device)),
               width_(width),
               height_(height),
-              buffers_(buffers),
               fps_(fps),
               format_(std::move(format))
         {
@@ -545,13 +481,12 @@ namespace modules
         {
             const int cam_w = width_ > 0 ? width_ : kFallbackWidth;
             const int cam_h = height_ > 0 ? height_ : kFallbackHeight;
-            const int cam_buffers =
-                buffers_ > 0 ? buffers_ : UsbV4L2Camera::kDefaultBufferCount;
             const double cam_fps = fps_ > 0.0 ? fps_ : 30.0;
             const std::string cam_format = format_.empty() ? "auto" : format_;
 
             camera_ = std::make_unique<UsbV4L2Camera>(
-                device_, cam_w, cam_h, cam_buffers, cam_fps, cam_format, true);
+                device_, cam_w, cam_h, kDefaultCameraBufferCount,
+                cam_fps, cam_format);
             if (!camera_->init() || !camera_->start())
             {
                 camera_.reset();

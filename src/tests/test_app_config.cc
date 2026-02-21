@@ -166,6 +166,68 @@ int main()
             "video_camera": {
               "sources": [
                 {
+                  "name": "camera.0",
+                  "type": "mipi_camera",
+                  "input": "/dev/video0",
+                  "format": "mjpeg"
+                }
+              ]
+            }
+          }
+        }
+        )JSON";
+    nlohmann::json root = parse_json(text);
+    AppConfig cfg;
+    std::string error;
+    bool ok = parse_config(root, &cfg, &error);
+    check(!ok, "reject mjpeg for mipi_camera");
+    check(error.find("auto/nv12/yuyv") != std::string::npos,
+          "mipi format constraint error text");
+  }
+
+  {
+    const char *text = R"JSON(
+        {
+          "general": {
+            "mode": "video_camera",
+            "label": "labels.txt",
+            "model_path": "model.rknn"
+          },
+          "modes": {
+            "video_camera": {
+              "sources": [
+                {
+                  "name": "camera.0",
+                  "type": "usb_camera",
+                  "input": "/dev/video0",
+                  "format": "nv12"
+                }
+              ]
+            }
+          }
+        }
+        )JSON";
+    nlohmann::json root = parse_json(text);
+    AppConfig cfg;
+    std::string error;
+    bool ok = parse_config(root, &cfg, &error);
+    check(!ok, "reject nv12 for usb_camera");
+    check(error.find("auto/mjpeg/yuyv") != std::string::npos,
+          "usb format constraint error text");
+  }
+
+  {
+    const char *text = R"JSON(
+        {
+          "general": {
+            "mode": "video_camera",
+            "label": "labels.txt",
+            "model_path": "model.rknn"
+          },
+          "modes": {
+            "video_camera": {
+              "sources": [
+                {
                   "name": "rtsp.0",
                   "type": "rtsp",
                   "input": "rtsp://127.0.0.1:8554/test",

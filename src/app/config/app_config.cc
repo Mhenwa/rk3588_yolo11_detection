@@ -1,8 +1,8 @@
 #include "app_config.h"
 
-#include <algorithm>
-#include <cctype>
 #include <fstream>
+
+#include "core/utils/string_utils.h"
 
 namespace
 {
@@ -19,16 +19,6 @@ namespace
         return false;
     }
 
-    std::string to_lower(std::string value)
-    {
-        std::transform(value.begin(), value.end(), value.begin(),
-                       [](unsigned char ch)
-                       {
-                           return static_cast<char>(std::tolower(ch));
-                       });
-        return value;
-    }
-
     bool parse_source_type(const std::string& raw,
                            InputType* out,
                            const std::string& context,
@@ -39,7 +29,7 @@ namespace
             return set_error(error, "internal error: source type output missing");
         }
 
-        std::string type = to_lower(raw);
+        std::string type = core::utils::to_lower(raw);
         if (type == "video")
         {
             *out = INPUT_VIDEO;
@@ -205,33 +195,6 @@ namespace
         return true;
     }
 
-    bool parse_buffers(const json &obj,
-                       const std::string &context,
-                       int *buffers,
-                       bool *buffers_set,
-                       std::string *error)
-    {
-        bool set = obj.contains("buffers");
-        if (set)
-        {
-            const json &value = obj.at("buffers");
-            if (!value.is_number_integer())
-            {
-                return set_error(error, "buffers must be integer in " + context);
-            }
-            int count = value.get<int>();
-            if (count < 1)
-            {
-                return set_error(error, "buffers must be >= 1 in " + context);
-            }
-            if (buffers)
-                *buffers = count;
-        }
-        if (buffers_set)
-            *buffers_set = set;
-        return true;
-    }
-
     bool parse_fps(const json &obj,
                    const std::string &context,
                    double *fps,
@@ -277,7 +240,7 @@ namespace
             {
                 return set_error(error, "format must be non-empty in " + context);
             }
-            value = to_lower(value);
+            value = core::utils::to_lower(value);
             if (value == "mjpg")
                 value = "mjpeg";
             if (value != "auto" && value != "mjpeg" &&
@@ -302,7 +265,7 @@ namespace
         {
             return set_error(error, "internal error: mode output missing");
         }
-        std::string mode = to_lower(raw);
+        std::string mode = core::utils::to_lower(raw);
         if (!mode.empty() && mode.rfind("--", 0) == 0)
         {
             mode = mode.substr(2);
@@ -431,11 +394,6 @@ bool parse_config(const nlohmann::json &root,
         {
             return false;
         }
-        if (!parse_buffers(source_json, source_context, &source.buffers,
-                           &source.buffers_set, error))
-        {
-            return false;
-        }
         if (!parse_fps(source_json, source_context, &source.fps,
                        &source.fps_set, error))
         {
@@ -446,13 +404,23 @@ bool parse_config(const nlohmann::json &root,
         {
             return false;
         }
-        if (source.type == INPUT_USB_CAMERA || source.type == INPUT_MIPI_CAMERA)
+        if (source.type == INPUT_USB_CAMERA)
         {
             if (source.format != "auto" && source.format != "mjpeg" &&
-                source.format != "yuyv" && source.format != "nv12")
+                source.format != "yuyv")
             {
                 return set_error(error,
-                                 "format must be auto/mjpeg/yuyv/nv12 in " +
+                                 "format must be auto/mjpeg/yuyv in " +
+                                     source_context);
+            }
+        }
+        else if (source.type == INPUT_MIPI_CAMERA)
+        {
+            if (source.format != "auto" && source.format != "nv12" &&
+                source.format != "yuyv")
+            {
+                return set_error(error,
+                                 "format must be auto/nv12/yuyv in " +
                                      source_context);
             }
         }

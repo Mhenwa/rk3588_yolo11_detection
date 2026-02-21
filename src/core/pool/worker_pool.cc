@@ -117,6 +117,7 @@ bool init_worker_pool(const char *model_path,
             available_masks = detect_available_npu_cores(worker->ctx.rknn_ctx);
         }
 
+        // 优先轮询绑定核心
         const int core_slot = static_cast<int>(g_core_rr.fetch_add(1) % available_masks.size());
         worker->core_mask = available_masks[core_slot];
 

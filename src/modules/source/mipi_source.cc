@@ -1,7 +1,5 @@
 #include "modules/source/mipi_source.h"
 
-#include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <utility>
@@ -15,6 +13,7 @@
 #include <unistd.h>
 
 #include "core/log/app_log.h"
+#include "core/utils/string_utils.h"
 
 namespace modules
 {
@@ -26,6 +25,7 @@ namespace modules
             constexpr int kNv12PlaneCount = 2;
             constexpr int kFallbackWidth = 640;
             constexpr int kFallbackHeight = 480;
+            constexpr int kDefaultCameraBufferCount = 4;
 
             void log_errno(const char *action)
             {
@@ -43,15 +43,6 @@ namespace modules
                 return std::string(fourcc);
             }
 
-            std::string to_lower(std::string value)
-            {
-                std::transform(value.begin(), value.end(), value.begin(),
-                               [](unsigned char ch)
-                               {
-                                   return static_cast<char>(std::tolower(ch));
-                               });
-                return value;
-            }
         } // namespace
 
         class MipiV4L2Camera
@@ -65,8 +56,7 @@ namespace modules
                            int height,
                            int buffer_count,
                            double target_fps,
-                           std::string format,
-                           bool allow_format_fallback);
+                           std::string format);
             ~MipiV4L2Camera();
 
             bool init();
@@ -90,7 +80,6 @@ namespace modules
             int buffer_count_;
             double target_fps_;
             std::string format_;
-            bool allow_format_fallback_;
             double actual_fps_;
             bool streaming_;
             bool is_mplane_;
@@ -104,8 +93,7 @@ namespace modules
                                        int height,
                                        int buffer_count,
                                        double target_fps,
-                                       std::string format,
-                                       bool allow_format_fallback)
+                                       std::string format)
             : fd_(-1),
               device_(std::move(device)),
               width_(width),
@@ -115,7 +103,6 @@ namespace modules
               buffer_count_(buffer_count),
               target_fps_(target_fps),
               format_(std::move(format)),
-              allow_format_fallback_(allow_format_fallback),
               actual_fps_(0.0),
               streaming_(false),
               is_mplane_(false),
@@ -172,7 +159,7 @@ namespace modules
                 return false;
             }
 
-            std::string desired_format = to_lower(format_);
+            std::string desired_format = core::utils::to_lower(format_);
             if (desired_format == "mjpg")
                 desired_format = "mjpeg";
             if (desired_format.empty())
@@ -181,58 +168,25 @@ namespace modules
             const bool format_auto = desired_format == "auto";
             const bool want_nv12 = desired_format == "nv12";
             const bool want_yuyv = desired_format == "yuyv";
-            const bool want_mjpeg = desired_format == "mjpeg";
-            if (!format_auto && !want_nv12 && !want_yuyv && !want_mjpeg)
+            if (!format_auto && !want_nv12 && !want_yuyv)
             {
                 LOGE("Unsupported MIPI format requested: %s\n", format_.c_str());
                 return false;
             }
-            if (want_mjpeg && !allow_format_fallback_)
+
+            std::vector<uint32_t> requested_formats;
+            if (format_auto)
             {
-                LOGE("MIPI does not support MJPEG without fallback\n");
-                return false;
+                requested_formats.push_back(V4L2_PIX_FMT_NV12);
+                requested_formats.push_back(V4L2_PIX_FMT_YUYV);
             }
-
-            auto push_unique = [](std::vector<uint32_t> *list, uint32_t fmt)
+            else if (want_nv12)
             {
-                if (std::find(list->begin(), list->end(), fmt) == list->end())
-                {
-                    list->push_back(fmt);
-                }
-            };
-
-            std::vector<uint32_t> mplane_formats;
-            std::vector<uint32_t> capture_formats;
-
-            if (cap_mplane && (format_auto || want_nv12 || want_mjpeg ||
-                               (want_yuyv && allow_format_fallback_)))
-            {
-                push_unique(&mplane_formats, V4L2_PIX_FMT_NV12);
+                requested_formats.push_back(V4L2_PIX_FMT_NV12);
             }
-            if (cap_capture)
+            else
             {
-                if (format_auto)
-                {
-                    push_unique(&capture_formats, V4L2_PIX_FMT_NV12);
-                    push_unique(&capture_formats, V4L2_PIX_FMT_YUYV);
-                }
-                else if (want_nv12)
-                {
-                    push_unique(&capture_formats, V4L2_PIX_FMT_NV12);
-                    if (allow_format_fallback_)
-                        push_unique(&capture_formats, V4L2_PIX_FMT_YUYV);
-                }
-                else if (want_yuyv)
-                {
-                    push_unique(&capture_formats, V4L2_PIX_FMT_YUYV);
-                    if (allow_format_fallback_)
-                        push_unique(&capture_formats, V4L2_PIX_FMT_NV12);
-                }
-                else if (want_mjpeg && allow_format_fallback_)
-                {
-                    push_unique(&capture_formats, V4L2_PIX_FMT_NV12);
-                    push_unique(&capture_formats, V4L2_PIX_FMT_YUYV);
-                }
+                requested_formats.push_back(V4L2_PIX_FMT_YUYV);
             }
 
             auto try_set_mplane = [&](uint32_t pixfmt, int width, int height) -> bool
@@ -276,44 +230,23 @@ namespace modules
                 return true;
             };
 
-            auto try_mplane_formats = [&](int width, int height) -> bool
-            {
-                for (size_t i = 0; i < mplane_formats.size(); ++i)
-                {
-                    if (try_set_mplane(mplane_formats[i], width, height))
-                        return true;
-                }
-                return false;
-            };
-            auto try_capture_formats = [&](int width, int height) -> bool
-            {
-                for (size_t i = 0; i < capture_formats.size(); ++i)
-                {
-                    if (try_set_capture(capture_formats[i], width, height))
-                        return true;
-                }
-                return false;
-            };
-
-            const bool prefer_mplane = !want_yuyv;
             auto try_with_size = [&](int width, int height) -> bool
             {
-                bool ok = false;
-                if (prefer_mplane)
+                for (size_t i = 0; i < requested_formats.size(); ++i)
                 {
-                    if (cap_mplane)
-                        ok = try_mplane_formats(width, height);
-                    if (!ok && cap_capture)
-                        ok = try_capture_formats(width, height);
-                }
-                else
-                {
+                    const uint32_t pixfmt = requested_formats[i];
+                    if (pixfmt == V4L2_PIX_FMT_NV12 && cap_mplane)
+                    {
+                        if (try_set_mplane(pixfmt, width, height))
+                            return true;
+                    }
                     if (cap_capture)
-                        ok = try_capture_formats(width, height);
-                    if (!ok && cap_mplane)
-                        ok = try_mplane_formats(width, height);
+                    {
+                        if (try_set_capture(pixfmt, width, height))
+                            return true;
+                    }
                 }
-                return ok;
+                return false;
             };
 
             bool format_ok = try_with_size(width_, height_);
@@ -659,13 +592,11 @@ namespace modules
         MipiSource::MipiSource(std::string device,
                                int width,
                                int height,
-                               int buffers,
                                double fps,
                                std::string format)
             : device_(std::move(device)),
               width_(width),
               height_(height),
-              buffers_(buffers),
               fps_(fps),
               format_(std::move(format))
         {
@@ -677,13 +608,12 @@ namespace modules
         {
             const int cam_w = width_ > 0 ? width_ : kFallbackWidth;
             const int cam_h = height_ > 0 ? height_ : kFallbackHeight;
-            const int cam_buffers =
-                buffers_ > 0 ? buffers_ : MipiV4L2Camera::kDefaultBufferCount;
             const double cam_fps = fps_ > 0.0 ? fps_ : 30.0;
             const std::string cam_format = format_.empty() ? "auto" : format_;
 
             camera_ = std::make_unique<MipiV4L2Camera>(
-                device_, cam_w, cam_h, cam_buffers, cam_fps, cam_format, true);
+                device_, cam_w, cam_h, kDefaultCameraBufferCount,
+                cam_fps, cam_format);
             if (!camera_->init() || !camera_->start())
             {
                 camera_.reset();

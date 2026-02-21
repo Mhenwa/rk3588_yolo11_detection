@@ -1,29 +1,19 @@
 #include "modules/source/rtsp_source.h"
 
-#include <algorithm>
-#include <cctype>
 #include <cstdio>
 #include <utility>
 #include <vector>
 
 #include "core/log/app_log.h"
+#include "core/utils/string_utils.h"
 
 namespace {
 constexpr int kRtspLatencyMs = 200;
 
-std::string to_lower(std::string value)
-{
-    std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char ch) {
-                       return static_cast<char>(std::tolower(ch));
-                   });
-    return value;
-}
-
 std::string normalize_codec(const std::string& codec)
 {
     if (codec.empty()) return "auto";
-    std::string lower = to_lower(codec);
+    std::string lower = core::utils::to_lower(codec);
     if (lower == "mjpg") lower = "mjpeg";
     if (lower == "h264" || lower == "h265" || lower == "auto") {
         return lower;

@@ -16,7 +16,6 @@ public:
     MipiSource(std::string device,
                int width,
                int height,
-               int buffers,
                double fps,
                std::string format);
     ~MipiSource() override;
@@ -29,7 +28,6 @@ private:
     std::string device_;
     int width_;
     int height_;
-    int buffers_;
     double fps_;
     std::string format_;
     std::unique_ptr<MipiV4L2Camera> camera_;

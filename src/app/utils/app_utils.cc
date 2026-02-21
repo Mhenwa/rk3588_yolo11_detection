@@ -3,7 +3,6 @@
 #include "core/log/app_log.h"
 
 #include <atomic>
-#include <cctype>
 #include <cstdio>
 #include <string>
 
@@ -45,7 +44,7 @@ void print_usage(const char* prog)
     LOGI("Config keys (JSON):\n");
     LOGI("  general: { mode, model_path, label }  mode=video_camera\n");
     LOGI("  modes.video_camera.sources:\n");
-    LOGI("    [ { name, type, input, threads, width, height, buffers, fps, format, conf_threshold } ]\n");
+    LOGI("    [ { name, type, input, threads, width, height, fps, format, conf_threshold } ]\n");
     LOGI("    type=video|rtsp|mipi_camera|usb_camera\n");
 }
 
@@ -129,15 +128,4 @@ void print_run_report(const RunReport& report,
         LOGI("Output: %s\n", report.output_path);
     }
     LOGI("======================\n");
-}
-
-bool is_number_str(const char* s)
-{
-    if (!s || *s == '\0') return false;
-    for (const char* p = s; *p; ++p) {
-        if (!std::isdigit(static_cast<unsigned char>(*p))) {
-            return false;
-        }
-    }
-    return true;
 }

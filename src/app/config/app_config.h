@@ -18,16 +18,14 @@ struct SourceConfig
     int threads = 3;
     int width = 0;
     int height = 0;
-    int buffers = 0; // 相机的输入缓冲
     double fps = 30.0;
-    std::string format = "auto"; // 相机: auto/mjpeg/yuyv/nv12; rtsp: auto/h264/h265
+    std::string format = "auto"; // USB: auto/mjpeg/yuyv; MIPI: auto/nv12/yuyv; rtsp: auto/h264/h265
     double conf_threshold = kDefaultConfThreshold; // 置信度阈值，低于不画框
 
     // 此项是否为默认设置
     bool threads_set = false;
     bool width_set = false;
     bool height_set = false;
-    bool buffers_set = false;
     bool fps_set = false;
     bool format_set = false;
     bool conf_threshold_set = false;

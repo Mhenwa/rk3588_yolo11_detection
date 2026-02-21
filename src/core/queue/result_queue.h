@@ -3,7 +3,14 @@
 
 #include "core/types/app_types.h"
 
-bool try_pop_result(ResultQueue& q, FrameResult& out);
-FrameResult pop_result_wait(ResultQueue& q);
+/*
+    非阻塞弹出一个结果
+*/
+bool try_pop_result(ResultQueue &q, FrameResult &out);
 
-#endif  // CORE_QUEUE_RESULT_QUEUE_H_
+/*
+    阻塞等待直到至少有一个结果
+*/
+FrameResult pop_result_wait(ResultQueue &q);
+
+#endif // CORE_QUEUE_RESULT_QUEUE_H_

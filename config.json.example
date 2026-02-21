@@ -17,7 +17,6 @@
           "threads": 1,
           "width": 1920,
           "height": 1080,
-          "buffers": 2,
           "fps": 15,
           "format": "mjpg",
           "conf_threshold": 0.3
@@ -29,7 +28,6 @@
           "threads": 1,
           "width": 1920,
           "height": 1080,
-          "buffers": 2,
           "fps": 15,
           "format": "mjpg",
           "conf_threshold": 0.3
@@ -41,7 +39,6 @@
           "threads": 1,
           "width": 1920,
           "height": 1080,
-          "buffers": 2,
           "fps": 15,
           "format": "mjpg",
           "conf_threshold": 0.3
