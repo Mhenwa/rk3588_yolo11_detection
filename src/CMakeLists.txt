@@ -57,6 +57,7 @@ endif()
 
 # ===== Third-party =====
 add_subdirectory(../3rdparty 3rdparty.out)
+add_subdirectory(../rtspMulitPlayer rtspMulitPlayer.out)
 
 add_custom_target(check_module_boundaries
     COMMAND /usr/bin/env bash

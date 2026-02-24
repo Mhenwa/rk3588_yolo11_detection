@@ -6,6 +6,7 @@ TARGET_SOC=""
 TARGET_ARCH="aarch64"
 BUILD_TYPE="Release"
 PROJECT_NAME="demo"
+SUBPROJECT_NAME="rtspMulitPlayer"
 DO_RUN=1
 DO_CLEAN=1
 JOBS="$(nproc)"
@@ -112,6 +113,7 @@ CXX_FLAGS="${OPT_FLAGS} ${COMMON_CXXFLAGS} ${NATIVE_FLAGS}"
 # Print config
 echo "==================================="
 echo "PROJECT_NAME=${PROJECT_NAME}"
+echo "SUBPROJECT_NAME=${SUBPROJECT_NAME}"
 echo "TARGET_SOC=${TARGET_SOC}"
 echo "TARGET_ARCH=${TARGET_ARCH}"
 echo "BUILD_TYPE=${BUILD_TYPE}"
@@ -141,7 +143,7 @@ cmake "${SRC_DIR}" \
   -DCMAKE_C_FLAGS_DEBUG="${C_FLAGS}" \
   -DCMAKE_CXX_FLAGS_DEBUG="${CXX_FLAGS}"
 
-cmake --build . -j"${JOBS}"
+cmake --build . --target "${PROJECT_NAME}" "${SUBPROJECT_NAME}" -j"${JOBS}"
 
 cd "${ROOT_DIR}"
 
