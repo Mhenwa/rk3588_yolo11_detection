@@ -1,4 +1,5 @@
 #include <math.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +9,8 @@
 #include "drmrga.h"
 #include "im2d.h"
 #include "image_utils.h"
+
+static pthread_mutex_t g_rga_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int crop_and_scale_image_c(int channel,
                                   unsigned char *src, int src_width, int src_height,
@@ -558,6 +561,26 @@ int convert_image_with_letterbox(image_buffer_t *src_image, image_buffer_t *dst_
         }
     }
 
+    // int rga_locked = 0;
+    // const int lock_ret = pthread_mutex_lock(&g_rga_mutex);
+    // if (lock_ret != 0)
+    // {
+    //     LOGE("RGA mutex lock failed: %d\n", lock_ret);
+    //     return -1;
+    // }
+    // rga_locked = 1;
+    // LOGI("RGA locked\n");
+
     ret = convert_image_internal(src_image, dst_image, &src_box, &dst_box, color);
+
+    // LOGI("Release RGA lock\n");
+    // if (rga_locked)
+    // {
+    //     const int unlock_ret = pthread_mutex_unlock(&g_rga_mutex);
+    //     if (unlock_ret != 0)
+    //     {
+    //         LOGE("RGA mutex unlock failed: %d\n", unlock_ret);
+    //     }
+    // }
     return ret;
 }

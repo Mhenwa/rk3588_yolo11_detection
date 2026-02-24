@@ -9,7 +9,7 @@ PROJECT_NAME="demo"
 SUBPROJECT_NAME="rtspMulitPlayer"
 DO_RUN=1
 DO_CLEAN=1
-JOBS="$(nproc)"
+JOBS=4
 USE_NATIVE=0
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
