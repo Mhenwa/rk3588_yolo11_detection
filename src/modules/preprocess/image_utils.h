@@ -6,12 +6,7 @@ extern "C" {
 #endif
 
 #include "core/types/common.h"
-
-typedef struct {
-    int x_pad;
-    int y_pad;
-    float scale;
-} letterbox_t;
+#include "core/types/preprocess_types.h"
 
 // Preprocess core API.
 int convert_image_with_letterbox(image_buffer_t* src_image,

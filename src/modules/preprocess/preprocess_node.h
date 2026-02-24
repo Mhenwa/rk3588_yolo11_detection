@@ -5,8 +5,8 @@
 
 #include <opencv2/opencv.hpp>
 
+#include "core/types/infer_types.h"
 #include "modules/preprocess/image_utils.h"
-#include "modules/inference/infer_context.h"
 
 namespace modules {
 namespace preprocess {

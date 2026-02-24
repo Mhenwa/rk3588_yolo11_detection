@@ -1,4 +1,4 @@
-#include "modules/inference/infer_worker.h"
+#include "core/pool/infer_worker.h"
 
 #include <utility>
 
@@ -7,7 +7,7 @@
 #include "modules/postprocess/postprocess_node.h"
 #include "modules/preprocess/preprocess_node.h"
 
-void infer_worker_loop(Worker *worker, ResultQueue *results)
+void infer_worker_loop(Worker* worker, ResultQueue* results)
 {
     // 每个 worker 线程各自持有节点实例，避免跨线程共享可变状态。
     modules::preprocess::PreprocessNode preprocess_node;
@@ -43,7 +43,7 @@ void infer_worker_loop(Worker *worker, ResultQueue *results)
             modules::preprocess::PreprocessOutput preprocess_out;
             if (preprocess_node.Run(res.frame, worker->ctx, &preprocess_out))
             {
-                modules::inference::InferOutput infer_out;
+                core::types::InferOutput infer_out;
                 if (infer_node.Run(&worker->ctx, preprocess_out.input_image,
                                    &infer_out))
                 {

@@ -6,12 +6,15 @@
 #ifndef MODULES_SOURCE_SOURCE_BASE_H_
 #define MODULES_SOURCE_SOURCE_BASE_H_
 
-#include "modules/source/source_frame.h"
+#include "core/types/frame_types.h"
 
 namespace modules
 {
     namespace source
     {
+
+        using SourceFrame = core::types::SourceFrame;
+        using SourceFrameFormat = core::types::SourceFrameFormat;
 
         class SourceBase
         {

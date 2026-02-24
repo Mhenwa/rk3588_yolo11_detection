@@ -482,7 +482,7 @@ namespace modules
         } // namespace
 
         bool PostprocessNode::Run(rknn_app_context_t *app_ctx,
-                                  inference::InferOutput *infer_output,
+                                  core::types::InferOutput* infer_output,
                                   const letterbox_t &letterbox,
                                   float conf_threshold,
                                   cv::Mat *frame,

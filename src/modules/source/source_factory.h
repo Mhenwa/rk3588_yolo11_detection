@@ -2,9 +2,8 @@
 #define MODULES_SOURCE_SOURCE_FACTORY_H_
 
 #include <memory>
-#include <string>
 
-#include "app/config/app_config.h"
+#include "core/types/source_types.h"
 #include "modules/source/source_base.h"
 
 namespace modules
@@ -12,7 +11,7 @@ namespace modules
     namespace source
     {
 
-        std::unique_ptr<SourceBase> BuildSource(const SourceConfig &source);
+        std::unique_ptr<SourceBase> BuildSource(const core::types::SourceOptions& source);
 
     } // namespace source
 } // namespace modules

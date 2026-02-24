@@ -5,7 +5,8 @@
 #include <vector>
 
 #include "core/log/app_log.h"
-#include "modules/inference/infer_worker.h"
+#include "core/pool/infer_worker.h"
+#include "modules/inference/infer_context.h"
 
 namespace
 {

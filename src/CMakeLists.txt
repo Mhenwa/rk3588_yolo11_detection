@@ -58,6 +58,14 @@ endif()
 # ===== Third-party =====
 add_subdirectory(../3rdparty 3rdparty.out)
 
+add_custom_target(check_module_boundaries
+    COMMAND /usr/bin/env bash
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_module_boundaries.sh
+            ${CMAKE_CURRENT_SOURCE_DIR}/..
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Checking module include boundaries"
+)
+
 # 普通版本
 add_executable(demo
     app/config/app_config.cc
@@ -67,6 +75,7 @@ add_executable(demo
     core/log/app_log.cc
     core/queue/result_queue.cc
     core/pool/worker_pool.cc
+    core/pool/infer_worker.cc
     core/pipeline/frame_pipeline.cc
     modules/source/file_source.cc
     modules/source/rtsp_source.cc
@@ -78,11 +87,12 @@ add_executable(demo
     modules/preprocess/preprocess_node.cc
     modules/preprocess/image_utils.c
     modules/inference/infer_node.cc
-    modules/inference/infer_worker.cc
     modules/inference/infer_context.cc
     modules/postprocess/postprocess_node.cc
     ../3rdparty/allocator/dma/dma_alloc.cpp
 )
+
+add_dependencies(demo check_module_boundaries)
 
 target_include_directories(demo PRIVATE
     ${LIBRKNNRT_INCLUDES}

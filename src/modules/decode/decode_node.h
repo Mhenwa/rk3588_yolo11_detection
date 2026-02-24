@@ -6,7 +6,7 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "modules/source/source_frame.h"
+#include "core/types/frame_types.h"
 
 namespace modules {
 namespace decode {
@@ -21,7 +21,7 @@ class IFrameDecoder {
 public:
     virtual ~IFrameDecoder() = default;
     virtual const char* Name() const = 0;
-    virtual bool Decode(const source::SourceFrame& input, cv::Mat* out) = 0;
+    virtual bool Decode(const core::types::SourceFrame& input, cv::Mat* out) = 0;
 };
 
 struct DecodeNodeOptions {
@@ -34,7 +34,7 @@ public:
     explicit DecodeNode(const DecodeNodeOptions& options);
 
     void RegisterDecoder(std::unique_ptr<IFrameDecoder> decoder);
-    bool Decode(const source::SourceFrame& input, cv::Mat* out);
+    bool Decode(const core::types::SourceFrame& input, cv::Mat* out);
 
 private:
     void InitDefaultDecoders();

@@ -36,20 +36,20 @@ namespace modules
                     return "software";
                 }
 
-                bool Decode(const source::SourceFrame &input, cv::Mat *out) override
+                bool Decode(const core::types::SourceFrame& input, cv::Mat* out) override
                 {
                     if (!out)
                         return false;
                     switch (input.format)
                     {
-                    case source::SourceFrameFormat::kBgr:
+                    case core::types::SourceFrameFormat::kBgr:
                         *out = input.frame;
                         return !out->empty();
-                    case source::SourceFrameFormat::kMjpeg:
+                    case core::types::SourceFrameFormat::kMjpeg:
                         return DecodeMjpeg(input, out);
-                    case source::SourceFrameFormat::kNv12:
+                    case core::types::SourceFrameFormat::kNv12:
                         return DecodeNv12(input, out);
-                    case source::SourceFrameFormat::kYuyv:
+                    case core::types::SourceFrameFormat::kYuyv:
                         return DecodeYuyv(input, out);
                     default:
                         return false;
@@ -57,7 +57,7 @@ namespace modules
                 }
 
             private:
-                bool DecodeMjpeg(const source::SourceFrame &input, cv::Mat *out)
+                bool DecodeMjpeg(const core::types::SourceFrame& input, cv::Mat* out)
                 {
                     if (input.data.empty())
                         return false;
@@ -108,7 +108,7 @@ namespace modules
                     return true;
                 }
 
-                bool DecodeNv12(const source::SourceFrame &input, cv::Mat *out)
+                bool DecodeNv12(const core::types::SourceFrame& input, cv::Mat* out)
                 {
                     if (input.width <= 0 || input.height <= 0)
                         return false;
@@ -127,7 +127,7 @@ namespace modules
                     return !out->empty();
                 }
 
-                bool DecodeYuyv(const source::SourceFrame &input, cv::Mat *out)
+                bool DecodeYuyv(const core::types::SourceFrame& input, cv::Mat* out)
                 {
                     if (input.width <= 0 || input.height <= 0)
                         return false;
@@ -158,7 +158,7 @@ namespace modules
                     return "rkmpp";
                 }
 
-                bool Decode(const source::SourceFrame &input, cv::Mat *out) override
+                bool Decode(const core::types::SourceFrame& input, cv::Mat* out) override
                 {
                     (void)input;
                     (void)out;
@@ -195,7 +195,7 @@ namespace modules
             decoders_.push_back(std::move(decoder));
         }
 
-        bool DecodeNode::Decode(const source::SourceFrame &input, cv::Mat *out)
+        bool DecodeNode::Decode(const core::types::SourceFrame& input, cv::Mat* out)
         {
             if (!out)
                 return false;
@@ -207,7 +207,7 @@ namespace modules
                     return true;
                 }
             }
-            LOGE("no decoder handled frame format=%s\n", source::ToString(input.format));
+            LOGE("no decoder handled frame format=%s\n", core::types::ToString(input.format));
             return false;
         }
 

@@ -5,14 +5,12 @@
 #include "modules/source/rtsp_source.h"
 #include "modules/source/usb_cam_source.h"
 
-
-
 namespace modules
 {
     namespace source
     {
 
-        std::unique_ptr<SourceBase> BuildSource(const SourceConfig &source)
+        std::unique_ptr<SourceBase> BuildSource(const core::types::SourceOptions& source)
         {
             if (source.type == INPUT_RTSP)
             {

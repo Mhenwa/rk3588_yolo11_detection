@@ -13,12 +13,13 @@
 #include "core/log/app_log.h"
 #include "core/pipeline/frame_pipeline.h"
 #include "core/pool/worker_pool.h"
+#include "core/types/frame_types.h"
 #include "core/types/fps_tracker.h"
+#include "core/types/source_types.h"
 #include "modules/decode/decode_node.h"
 #include "modules/display/display_node.h"
 #include "modules/source/source_base.h"
 #include "modules/source/source_factory.h"
-#include "modules/source/source_frame.h"
 
 namespace
 {
@@ -62,6 +63,18 @@ namespace
         double max_elapsed_s = 0.0;
         int total_threads = 0;
     };
+
+    core::types::SourceOptions make_source_options(const SourceConfig& cfg)
+    {
+        core::types::SourceOptions options;
+        options.type = cfg.type;
+        options.input = cfg.input;
+        options.width = cfg.width;
+        options.height = cfg.height;
+        options.fps = cfg.fps;
+        options.format = cfg.format;
+        return options;
+    }
 
     void init_source_report(SourceRuntime *runtime)
     {
@@ -250,7 +263,7 @@ namespace
         }
 
         // 每一路的帧处理流
-        // SourceBase::Read -> DecodeNode -> FramePipeline(多线程 infer workers：src/modules/inference/infer_worker.cc) -> DisplayNode
+        // SourceBase::Read -> DecodeNode -> FramePipeline(多线程 infer workers：src/core/pool/infer_worker.cc) -> DisplayNode
         while (source_ok && !stop_requested())
         {
             if (runtime->cfg.fps > 0.0)
@@ -265,7 +278,7 @@ namespace
             }
 
             // SourceBase::Read
-            modules::source::SourceFrame input_frame;
+            core::types::SourceFrame input_frame;
             if (!runtime->source->Read(&input_frame))
             {
                 LOGE("source frame capture failed: %s\n", runtime->cfg.input.c_str());
@@ -311,7 +324,7 @@ namespace
 
             // 多线程功能，生产者-多消费者，多生产者-单消费者
             // 每一路的主线程不断将帧放入生产队列，workerpool中worker从队列中取出一帧进行处理，随后将处理后的帧放到就绪队列
-            // worker内部逻辑见src/modules/inference/infer_worker.cc
+            // worker内部逻辑见src/core/pool/infer_worker.cc
             // 入队前先做容量控制，限制队列深度以控制时延和内存。
             // Todo：针对每路只配置一个线程时进行优化，一个线程时不再使用线程池方式
             pipeline.WaitForCapacity();
@@ -349,7 +362,7 @@ namespace
         auto runtime = std::make_unique<SourceRuntime>();
         runtime->cfg = source_cfg;
         runtime->window_name = "dock_blindspot - " + source_cfg.name; // Todo：窗口名字也可以在config.json中配置
-        runtime->source = modules::source::BuildSource(runtime->cfg); // 为每一路输入创建一个指针
+        runtime->source = modules::source::BuildSource(make_source_options(runtime->cfg)); // 为每一路输入创建一个指针
         init_source_report(runtime.get());
 
         if (!runtime->source)

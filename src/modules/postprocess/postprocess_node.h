@@ -6,9 +6,8 @@
 #include <opencv2/opencv.hpp>
 
 #include "core/types/common.h"
-#include "modules/preprocess/image_utils.h"
-#include "modules/inference/infer_context.h"
-#include "modules/inference/infer_node.h"
+#include "core/types/infer_types.h"
+#include "core/types/preprocess_types.h"
 
 constexpr int OBJ_NUMB_MAX_SIZE = 128;
 constexpr int OBJ_CLASS_NUM = 7;
@@ -41,7 +40,7 @@ struct PostprocessOutput {
 class PostprocessNode {
 public:
     bool Run(rknn_app_context_t* app_ctx,
-             inference::InferOutput* infer_output,
+             core::types::InferOutput* infer_output,
              const letterbox_t& letterbox,
              float conf_threshold,
              cv::Mat* frame,
