@@ -11,8 +11,7 @@
 #include "gst_opt.h"
 //=====================  PRJ  =====================
 #include "decChannel.h"
-
-#include "../analyzer/analyzer.h"
+#include "modules/source/rtsp_source.h"
 
 // 错误处理函数
 static gboolean on_error(GstBus *bus, GstMessage *message, gpointer data) {
@@ -124,7 +123,7 @@ static GstFlowReturn new_sample(GstElement *sink, gpointer user_data){
         GstMapInfo map;
         if (gst_buffer_map (buffer, &map, GST_MAP_READ)){
             // g_print("data size = %ld , info_size = %ld\n", map.size, GST_VIDEO_INFO_SIZE(&video_info));
-            ImgDesc_t imgDesc = {0};
+            modules::source::RtspImgDesc_t imgDesc = {0};
             imgDesc.chnId = data->chnId;
             imgDesc.width = stFrameDesc.width;
             imgDesc.height = stFrameDesc.height;
@@ -132,7 +131,7 @@ static GstFlowReturn new_sample(GstElement *sink, gpointer user_data){
             imgDesc.verStride = stFrameDesc.verStride;
             imgDesc.dataSize = map.size;
             strcpy(imgDesc.fmt, stFrameDesc.strFmt);
-            videoOutHandle((char *)map.data, imgDesc);
+            modules::source::rtspVideoOutHandle((char *)map.data, imgDesc);
             
             gst_buffer_unmap (buffer, &map);	//解除映射
         }

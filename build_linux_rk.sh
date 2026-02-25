@@ -6,11 +6,13 @@ TARGET_SOC=""
 TARGET_ARCH="aarch64"
 BUILD_TYPE="Release"
 PROJECT_NAME="demo"
-SUBPROJECT_NAME="rtspMulitPlayer"
 DO_RUN=1
 DO_CLEAN=1
 JOBS=4
 USE_NATIVE=0
+ENABLE_ASAN=0
+ENABLE_UBSAN=0
+ENABLE_MALLOC_CHECK=0
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="${ROOT_DIR}/src"
@@ -29,11 +31,15 @@ Options:
   --clean | --no-clean      Clean build dir (default: --clean)
   -j, --jobs <N>            Parallel jobs (default: nproc)
   --native                  Enable -mcpu=native -mtune=native (safe for on-device build&run)
+  --asan                    Enable AddressSanitizer (for heap/UAF/double-free定位)
+  --ubsan                   Enable UndefinedBehaviorSanitizer
+  --malloc-check            Enable glibc malloc checks at runtime (MALLOC_CHECK_=3)
   -h, --help                Show this help
 
 Examples:
   $0 --soc rk3588 --native
   $0 --soc rk3576 --type Release --target demo --no-run
+  $0 --soc rk3588 --type Debug --asan --ubsan --malloc-check
 EOF
 }
 
@@ -51,6 +57,9 @@ while [[ $# -gt 0 ]]; do
     --no-clean) DO_CLEAN=0; shift;;
     -j|--jobs) JOBS="${2:-}"; shift 2;;
     --native) USE_NATIVE=1; shift;;
+    --asan) ENABLE_ASAN=1; shift;;
+    --ubsan) ENABLE_UBSAN=1; shift;;
+    --malloc-check) ENABLE_MALLOC_CHECK=1; shift;;
     -h|--help) usage; exit 0;;
     *) die "Unknown argument: $1";;
   esac
@@ -107,19 +116,36 @@ if [[ "${USE_NATIVE}" -eq 1 && "${BUILD_TYPE}" == "Release" ]]; then
   NATIVE_FLAGS="-mcpu=native -mtune=native"
 fi
 
-C_FLAGS="${OPT_FLAGS} ${COMMON_CFLAGS} ${NATIVE_FLAGS}"
-CXX_FLAGS="${OPT_FLAGS} ${COMMON_CXXFLAGS} ${NATIVE_FLAGS}"
+SAN_FLAGS=""
+if [[ "${ENABLE_ASAN}" -eq 1 || "${ENABLE_UBSAN}" -eq 1 ]]; then
+  SAN_FLAGS="-fno-omit-frame-pointer -g3"
+  if [[ "${ENABLE_ASAN}" -eq 1 ]]; then
+    SAN_FLAGS="${SAN_FLAGS} -fsanitize=address"
+  fi
+  if [[ "${ENABLE_UBSAN}" -eq 1 ]]; then
+    SAN_FLAGS="${SAN_FLAGS} -fsanitize=undefined"
+  fi
+  if [[ "${BUILD_TYPE}" == "Release" ]]; then
+    OPT_FLAGS="-O1"
+  fi
+fi
+
+C_FLAGS="${OPT_FLAGS} ${COMMON_CFLAGS} ${NATIVE_FLAGS} ${SAN_FLAGS}"
+CXX_FLAGS="${OPT_FLAGS} ${COMMON_CXXFLAGS} ${NATIVE_FLAGS} ${SAN_FLAGS}"
+LD_FLAGS="${SAN_FLAGS}"
 
 # Print config
 echo "==================================="
 echo "PROJECT_NAME=${PROJECT_NAME}"
-echo "SUBPROJECT_NAME=${SUBPROJECT_NAME}"
 echo "TARGET_SOC=${TARGET_SOC}"
 echo "TARGET_ARCH=${TARGET_ARCH}"
 echo "BUILD_TYPE=${BUILD_TYPE}"
 echo "CC=${CC}"
 echo "CXX=${CXX}"
 echo "USE_NATIVE=${USE_NATIVE}"
+echo "ENABLE_ASAN=${ENABLE_ASAN}"
+echo "ENABLE_UBSAN=${ENABLE_UBSAN}"
+echo "ENABLE_MALLOC_CHECK=${ENABLE_MALLOC_CHECK}"
 echo "JOBS=${JOBS}"
 echo "BUILD_DIR=${BUILD_DIR}"
 echo "==================================="
@@ -141,9 +167,10 @@ cmake "${SRC_DIR}" \
   -DCMAKE_C_FLAGS_RELEASE="${C_FLAGS}" \
   -DCMAKE_CXX_FLAGS_RELEASE="${CXX_FLAGS}" \
   -DCMAKE_C_FLAGS_DEBUG="${C_FLAGS}" \
-  -DCMAKE_CXX_FLAGS_DEBUG="${CXX_FLAGS}"
+  -DCMAKE_CXX_FLAGS_DEBUG="${CXX_FLAGS}" \
+  -DCMAKE_EXE_LINKER_FLAGS="${LD_FLAGS}"
 
-cmake --build . --target "${PROJECT_NAME}" "${SUBPROJECT_NAME}" -j"${JOBS}"
+cmake --build . --target "${PROJECT_NAME}" -j"${JOBS}"
 
 cd "${ROOT_DIR}"
 
@@ -151,5 +178,20 @@ cd "${ROOT_DIR}"
 if [[ "${DO_RUN}" -eq 1 ]]; then
   BIN_PATH="${BUILD_DIR}/${PROJECT_NAME}"
   [[ -x "${BIN_PATH}" ]] || die "Binary not found or not executable: ${BIN_PATH}"
-  "${BIN_PATH}"
+  RUN_ENV=()
+  if [[ "${ENABLE_ASAN}" -eq 1 ]]; then
+    RUN_ENV+=("ASAN_OPTIONS=abort_on_error=1:symbolize=1:detect_leaks=0:fast_unwind_on_malloc=0")
+  fi
+  if [[ "${ENABLE_UBSAN}" -eq 1 ]]; then
+    RUN_ENV+=("UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1")
+  fi
+  if [[ "${ENABLE_MALLOC_CHECK}" -eq 1 ]]; then
+    RUN_ENV+=("MALLOC_CHECK_=3" "MALLOC_PERTURB_=165")
+  fi
+
+  if [[ "${#RUN_ENV[@]}" -gt 0 ]]; then
+    env "${RUN_ENV[@]}" "${BIN_PATH}"
+  else
+    "${BIN_PATH}"
+  fi
 fi
