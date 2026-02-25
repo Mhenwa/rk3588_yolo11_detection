@@ -3,6 +3,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <string>
 
 #include <gst/gst.h>
 
@@ -43,16 +47,24 @@ public:
 	int init();
 	int32_t IsInited(){return bObjIsInited;}
     int32_t channelId(){return mGstChn.chnId;}
+    bool EnterCallback();
+    void LeaveCallback();
+    bool IsClosing() const;
 
     GstChannel_t mGstChn;
 
 protected:
 	int createVideoDecChannel();
     int createAudioDecChannel();
+    void Shutdown();
 private:
-    
-	pthread_t mTid;
 	int bObjIsInited;
+    gulong mPadAddedHandlerId;
+    gulong mNewSampleHandlerId;
+    std::atomic<bool> mClosing;
+    std::mutex mCallbackMu;
+    std::condition_variable mCallbackCv;
+    int mCallbackInflight;
 
     std::string mStrUrl;
     std::string mStrVideoFmt;

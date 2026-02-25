@@ -2,6 +2,8 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <chrono>
+#include <cstring>
 #include <string>
 //=====================   C   =====================
 #include <gst/video/video-info.h>
@@ -40,49 +42,51 @@ static gboolean print_pad_info (GQuark field, const GValue * value, gpointer pfx
 }
 
 /* This function will be called by the pad-added signal */
-static void pad_added_handler (GstElement *src, GstPad *new_pad, GstChannel_t *data)
+static void pad_added_handler (GstElement *src, GstPad *new_pad, gpointer user_data)
 {
-    GstPadLinkReturn ret;
+    DecChannel *channel = static_cast<DecChannel *>(user_data);
+    if (!channel || channel->IsClosing()) {
+        return;
+    }
+
+    GstChannel_t *data = &channel->mGstChn;
+    GstPadLinkReturn ret = GST_PAD_LINK_OK;
     GstPad *video_sinkPad = NULL;
-    GstPad *audio_sinkPad = NULL;
     
     g_print ("Received new pad '%s' from '%s':\n", GST_PAD_NAME (new_pad), GST_ELEMENT_NAME (src));
 
     /* Check the new pad's type */
     GstCaps *new_pad_caps = gst_pad_get_current_caps (new_pad);
+    if (!new_pad_caps) {
+        g_print("pad has no caps, ignore.\n");
+        return;
+    }
     GstStructure *new_pad_struct = gst_caps_get_structure(new_pad_caps, 0);
+    if (!new_pad_struct) {
+        gst_caps_unref(new_pad_caps);
+        return;
+    }
 
     //把Pads的信息都打印出来
     gst_structure_foreach(new_pad_struct, print_pad_info, (gpointer)"     ");
     
     const gchar *new_pad_type = gst_structure_get_name(new_pad_struct);
     const gchar *new_pad_media_type = gst_structure_get_string(new_pad_struct, "media");
-    //const gchar *new_pad_media_type = gst_value_serialize(gst_structure_get_value(new_pad_struct, "media"));
-    //sleep(10);
-    if (g_str_has_prefix (new_pad_media_type, "video")) {
+    if (new_pad_media_type && g_str_has_prefix(new_pad_media_type, "video")) {
         video_sinkPad = gst_element_get_static_pad (data->h26xRTPDepay, "sink");
-        if(video_sinkPad){
-            if(gst_pad_is_linked(video_sinkPad)){
-                g_print ("We are '%s' already linked. Ignoring.\n", new_pad_media_type);
-                goto exit;
-            }
-            /* Attempt the link */
-            ret = gst_pad_link (new_pad, video_sinkPad);
+        if (!video_sinkPad) {
+            g_print("video sink pad is null, ignore.\n");
+            goto exit;
         }
-        
-    }else if(g_str_has_prefix (new_pad_media_type, "audio")){
-        audio_sinkPad = gst_element_get_static_pad(data->aQueue, "sink");
-        if(audio_sinkPad){
-            if(gst_pad_is_linked(audio_sinkPad)){
-                g_print ("We are '%s' already linked. Ignoring.\n", new_pad_media_type);
-                goto exit;
-            }
-            /* Attempt the link */
-            ret = gst_pad_link (new_pad, audio_sinkPad);
+        if (gst_pad_is_linked(video_sinkPad)) {
+            g_print ("We are '%s' already linked. Ignoring.\n", new_pad_media_type);
+            goto exit;
         }
-
-    }else{
-        g_print ("It has type '%s-[%s]' which is not raw video or audio. Ignoring.\n", new_pad_type, new_pad_media_type);
+        ret = gst_pad_link(new_pad, video_sinkPad);
+    } else {
+        g_print("Ignore non-video pad type '%s-[%s]'.\n",
+                new_pad_type ? new_pad_type : "unknown",
+                new_pad_media_type ? new_pad_media_type : "unknown");
         goto exit;
     }
     
@@ -100,14 +104,25 @@ exit:
     /* Unreference the sink pad */
     if(video_sinkPad)
         gst_object_unref(video_sinkPad);
-    if(audio_sinkPad)
-        gst_object_unref(audio_sinkPad);
 }
 static GstFlowReturn new_sample(GstElement *sink, gpointer user_data){
-    GstChannel_t *data = (GstChannel_t *)user_data;
+    DecChannel *channel = static_cast<DecChannel *>(user_data);
+    if (!channel || !channel->EnterCallback()) {
+        return GST_FLOW_EOS;
+    }
+    struct CallbackGuard {
+        explicit CallbackGuard(DecChannel *owner) : owner(owner) {}
+        ~CallbackGuard() { owner->LeaveCallback(); }
+        DecChannel *owner;
+    } guard(channel);
+    if (channel->IsClosing()) {
+        return GST_FLOW_EOS;
+    }
+
+    GstChannel_t *data = &channel->mGstChn;
 
     /* Retrieve the buffer */
-    GstSample *sample;
+    GstSample *sample = NULL;
     g_signal_emit_by_name(sink, "pull-sample", &sample);
     if (sample){
         FrameDesc_t stFrameDesc;
@@ -130,7 +145,8 @@ static GstFlowReturn new_sample(GstElement *sink, gpointer user_data){
             imgDesc.horStride = stFrameDesc.horStride;
             imgDesc.verStride = stFrameDesc.verStride;
             imgDesc.dataSize = map.size;
-            strcpy(imgDesc.fmt, stFrameDesc.strFmt);
+            std::strncpy(imgDesc.fmt, stFrameDesc.strFmt, sizeof(imgDesc.fmt) - 1);
+            imgDesc.fmt[sizeof(imgDesc.fmt) - 1] = '\0';
             modules::source::rtspVideoOutHandle((char *)map.data, imgDesc);
             
             gst_buffer_unmap (buffer, &map);	//解除映射
@@ -204,6 +220,10 @@ void *busListen(void *para)
 
 DecChannel::DecChannel(int chnId, std::string strUrl, std::string strVedioFmt) :
 	bObjIsInited(false),
+    mPadAddedHandlerId(0),
+    mNewSampleHandlerId(0),
+    mClosing(false),
+    mCallbackInflight(0),
     mStrUrl(strUrl),
     mStrVideoFmt(strVedioFmt)
 {
@@ -212,7 +232,7 @@ DecChannel::DecChannel(int chnId, std::string strUrl, std::string strVedioFmt) :
 }
 DecChannel::~DecChannel()
 {
-
+    Shutdown();
 }
 int DecChannel::init()
 {
@@ -234,7 +254,7 @@ int DecChannel::init()
 
     /* Create video & audio decode channel */
     if(0 != createVideoDecChannel()){
-        gst_object_unref (mGstChn.pipeline);
+        Shutdown();
         return -1;
     }
     //if(0 != createAudioDecChannel()){
@@ -245,21 +265,81 @@ int DecChannel::init()
     /* Set the URL to play */
     g_object_set(mGstChn.source, "location", mStrUrl.c_str(), NULL);
     /* Connect to the pad-added signal */
-    g_signal_connect(mGstChn.source, "pad-added", G_CALLBACK(pad_added_handler), &mGstChn);
+    mPadAddedHandlerId = g_signal_connect(mGstChn.source, "pad-added", G_CALLBACK(pad_added_handler), this);
 
     /* Start playing */
     ret = gst_element_set_state (mGstChn.pipeline, GST_STATE_PLAYING);
     if (ret == GST_STATE_CHANGE_FAILURE) {
         g_printerr ("Unable to set the pipeline to the playing state.\n");
-        gst_object_unref (mGstChn.pipeline);
+        Shutdown();
         return -1;
     }
 
-	if(0 == CreateNormalThread(busListen, mGstChn.pipeline, &mTid)){
-        bObjIsInited = true;
-	}
+    bObjIsInited = true;
     
     return 0;
+}
+
+bool DecChannel::EnterCallback()
+{
+    std::lock_guard<std::mutex> lock(mCallbackMu);
+    if (mClosing.load()) {
+        return false;
+    }
+    ++mCallbackInflight;
+    return true;
+}
+
+void DecChannel::LeaveCallback()
+{
+    std::lock_guard<std::mutex> lock(mCallbackMu);
+    if (mCallbackInflight > 0) {
+        --mCallbackInflight;
+    }
+    if (mCallbackInflight == 0) {
+        mCallbackCv.notify_all();
+    }
+}
+
+bool DecChannel::IsClosing() const
+{
+    return mClosing.load();
+}
+
+void DecChannel::Shutdown()
+{
+    if (mClosing.exchange(true)) {
+        return;
+    }
+
+    bObjIsInited = false;
+    if (mGstChn.vSink) {
+        g_object_set(mGstChn.vSink, "emit-signals", FALSE, NULL);
+        if (mNewSampleHandlerId != 0) {
+            g_signal_handler_disconnect(mGstChn.vSink, mNewSampleHandlerId);
+            mNewSampleHandlerId = 0;
+        }
+    }
+    if (mGstChn.source && mPadAddedHandlerId != 0) {
+        g_signal_handler_disconnect(mGstChn.source, mPadAddedHandlerId);
+        mPadAddedHandlerId = 0;
+    }
+
+    if (mGstChn.pipeline) {
+        gst_element_set_state(mGstChn.pipeline, GST_STATE_NULL);
+        gst_element_get_state(mGstChn.pipeline, NULL, NULL, GST_SECOND);
+    }
+
+    std::unique_lock<std::mutex> lock(mCallbackMu);
+    mCallbackCv.wait_for(lock, std::chrono::milliseconds(200), [this]() {
+        return mCallbackInflight == 0;
+    });
+    lock.unlock();
+
+    if (mGstChn.pipeline) {
+        gst_object_unref(mGstChn.pipeline);
+    }
+    memset(&mGstChn, 0, sizeof(mGstChn));
 }
 
 int DecChannel::createVideoDecChannel()
@@ -306,7 +386,7 @@ int DecChannel::createVideoDecChannel()
 #endif
     g_object_set(mGstChn.vSink, "sync", FALSE, NULL);
     g_object_set(mGstChn.vSink, "emit-signals", TRUE, NULL);
-    g_signal_connect(mGstChn.vSink, "new-sample", G_CALLBACK(new_sample), &mGstChn);
+    mNewSampleHandlerId = g_signal_connect(mGstChn.vSink, "new-sample", G_CALLBACK(new_sample), this);
 
     // 把一个个【元素】添加进【管线】
     gst_bin_add(GST_BIN(mGstChn.pipeline), mGstChn.h26xRTPDepay);
