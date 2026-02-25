@@ -1,7 +1,6 @@
 #ifndef MODULES_DISPLAY_DISPLAY_NODE_H_
 #define MODULES_DISPLAY_DISPLAY_NODE_H_
 
-#include <mutex>
 #include <string>
 
 #include <opencv2/opencv.hpp>
@@ -25,9 +24,6 @@ namespace modules
                            const std::string &message) const;
 
             void CloseWindow(const std::string &window_name) const;
-
-        private:
-            static std::mutex &UiMutex();
         };
 
     } // namespace display

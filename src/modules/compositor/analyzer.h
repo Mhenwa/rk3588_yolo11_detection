@@ -4,9 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "algoProcess.h"
-
 extern int analyzer_init(char **ppDispBuf, int chnNums);
+extern void analyzer_set_channel_count(int chnNums);
 
 typedef struct {
     char fmt[16];

@@ -1,16 +1,21 @@
-/*
-    cv::imshow
-    Todo qt5
-*/
-
 #include "modules/display/display_node.h"
 
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
+#include <mutex>
 #include <sstream>
+#include <thread>
+#include <unordered_map>
 #include <vector>
+
+#include "display.h"
+#include "../compositor/analyzer.h"
 
 namespace
 {
+    constexpr int kWallWidth = 1920;
+    constexpr int kWallHeight = 1080;
 
     std::string NormalizeWindowName(const std::string &window_name)
     {
@@ -44,25 +49,91 @@ namespace
         return lines;
     }
 
+    struct GtkWallState
+    {
+        std::mutex mutex;
+        bool started = false;
+        bool display_seen_running = false;
+        int next_channel_id = 0;
+        std::unordered_map<std::string, int> channel_map;
+        std::thread thread;
+        Display_t desc = {"dock_blindspot", 0, 0, kWallWidth, kWallHeight};
+        char **disp_map = nullptr;
+    };
+
+    GtkWallState &WallState()
+    {
+        static GtkWallState state;
+        return state;
+    }
+
+    std::string &WindowTitleStore()
+    {
+        static std::string title = "dock_blindspot";
+        return title;
+    }
+
+    int ResolveChannelIdLocked(GtkWallState *state, const std::string &window_name)
+    {
+        auto it = state->channel_map.find(window_name);
+        if (it != state->channel_map.end())
+        {
+            return it->second;
+        }
+        const int channel_id = state->next_channel_id++;
+        state->channel_map[window_name] = channel_id;
+        analyzer_set_channel_count(std::max(1, state->next_channel_id));
+        return channel_id;
+    }
+
+    bool EnsureDisplayStartedLocked(GtkWallState *state,
+                                    const std::string &window_name)
+    {
+        if (state->started)
+        {
+            return true;
+        }
+
+        std::string &title = WindowTitleStore();
+        title = NormalizeWindowName(window_name);
+        state->desc.winTitle = title.c_str();
+        state->desc.width = kWallWidth;
+        state->desc.height = kWallHeight;
+
+        state->disp_map = dispBufferMap(&state->desc);
+        if (!state->disp_map || !(*state->disp_map))
+        {
+            return false;
+        }
+
+        if (0 != analyzer_init(state->disp_map, 1))
+        {
+            return false;
+        }
+
+        state->thread = std::thread([state]()
+                                    { display(&state->desc); });
+        state->thread.detach();
+        state->started = true;
+        return true;
+    }
+
 } // namespace
 
 namespace modules
 {
     namespace display
     {
-
-        std::mutex &DisplayNode::UiMutex()
-        {
-            static std::mutex ui_mutex;
-            return ui_mutex;
-        }
-
         void DisplayNode::InitWindow(const std::string &window_name) const
         {
             const std::string window = NormalizeWindowName(window_name);
-            std::lock_guard<std::mutex> lk(UiMutex());
-            cv::namedWindow(window.c_str(), cv::WINDOW_NORMAL | cv::WINDOW_FREERATIO);
-            cv::setWindowProperty(window.c_str(), cv::WND_PROP_AUTOSIZE, 0);
+            GtkWallState &state = WallState();
+            std::lock_guard<std::mutex> lk(state.mutex);
+            if (!EnsureDisplayStartedLocked(&state, window))
+            {
+                return;
+            }
+            ResolveChannelIdLocked(&state, window);
         }
 
         bool DisplayNode::ShowFrame(const std::string &window_name,
@@ -81,9 +152,51 @@ namespace modules
                         cv::FONT_HERSHEY_SIMPLEX,
                         0.8, cv::Scalar(0, 255, 0), 2);
 
-            std::lock_guard<std::mutex> lk(UiMutex());
-            cv::imshow(window.c_str(), *frame);
-            return cv::waitKey(1) == 27;
+            int channel_id = 0;
+            {
+                GtkWallState &state = WallState();
+                std::lock_guard<std::mutex> lk(state.mutex);
+                if (!EnsureDisplayStartedLocked(&state, window))
+                {
+                    return false;
+                }
+                channel_id = ResolveChannelIdLocked(&state, window);
+            }
+
+            cv::Mat src;
+            if (frame->isContinuous())
+            {
+                src = *frame;
+            }
+            else
+            {
+                src = frame->clone();
+            }
+
+            ImgDesc_t img_desc = {};
+            img_desc.chnId = channel_id;
+            img_desc.width = src.cols;
+            img_desc.height = src.rows;
+            img_desc.horStride = static_cast<int>(src.step / src.elemSize());
+            img_desc.verStride = src.rows;
+            img_desc.dataSize = static_cast<int>(src.total() * src.elemSize());
+            strncpy(img_desc.fmt, "BGR", sizeof(img_desc.fmt) - 1);
+            videoOutHandle(reinterpret_cast<char *>(src.data), img_desc);
+
+            {
+                GtkWallState &state = WallState();
+                std::lock_guard<std::mutex> lk(state.mutex);
+                if (displayIsRunning())
+                {
+                    state.display_seen_running = true;
+                }
+                if (state.display_seen_running && !displayIsRunning())
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         bool DisplayNode::ShowError(const std::string &window_name,
@@ -116,18 +229,12 @@ namespace modules
                     break;
             }
 
-            std::lock_guard<std::mutex> lk(UiMutex());
-            cv::namedWindow(window.c_str(), cv::WINDOW_NORMAL | cv::WINDOW_FREERATIO);
-            cv::setWindowProperty(window.c_str(), cv::WND_PROP_AUTOSIZE, 0);
-            cv::imshow(window.c_str(), canvas);
-            return cv::waitKey(1) == 27;
+            return ShowFrame(window, &canvas, 0.0, 0.0);
         }
 
         void DisplayNode::CloseWindow(const std::string &window_name) const
         {
-            const std::string window = NormalizeWindowName(window_name);
-            std::lock_guard<std::mutex> lk(UiMutex());
-            cv::destroyWindow(window.c_str());
+            (void)window_name;
         }
 
     } // namespace display

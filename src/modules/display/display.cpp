@@ -1,4 +1,5 @@
 //=====================  C++  =====================
+#include <atomic>
 #include <string>
 //=====================   C   =====================
 #include "system.h"
@@ -26,6 +27,7 @@ char **dispBufferMap(Display_t *dispDesc)
 
 
 static Display_t *gDispDesc = NULL;
+static std::atomic<bool> gDisplayRunning(false);
 static gboolean showWidget(GtkWidget *pImage) {
     char **ppBuf = dispBufferMap(gDispDesc);
     const guchar *pBuf = (const guchar *)*ppBuf;
@@ -42,13 +44,20 @@ static gboolean showWidget(GtkWidget *pImage) {
     
     return G_SOURCE_CONTINUE;
 }
+static void on_window_destroy(GtkWidget *widget, gpointer user_data)
+{
+    (void)widget;
+    (void)user_data;
+    gDisplayRunning.store(false);
+    gtk_main_quit();
+}
 static GtkWidget *disp_init(const char *strWinTitle, int32_t width, int32_t height)
 {
     gtk_init(NULL, NULL); // 初始化 GTK+ 库
     
     static GtkWidget *pWindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     if(pWindow){
-        g_signal_connect(pWindow, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+        g_signal_connect(pWindow, "destroy", G_CALLBACK(on_window_destroy), NULL);
         gtk_window_set_title(GTK_WINDOW(pWindow), strWinTitle);
         gtk_window_set_default_size(GTK_WINDOW(pWindow), width, height);
 
@@ -81,14 +90,23 @@ int display(Display_t *disp)
 {
     GtkWidget *pWindow = disp_init(disp->winTitle, disp->width, disp->height);
     if(pWindow){
+        gDisplayRunning.store(true);
         gDispDesc = disp;        
         disp_set_loop(pWindow, (GSourceFunc)showWidget);
         
         gtk_widget_show_all(pWindow);
-    } 
+    } else {
+        gDisplayRunning.store(false);
+    }
     // 进入主循环，等待用户操作
     gtk_main();
+    gDisplayRunning.store(false);
 
     return 0;
+}
+
+bool displayIsRunning()
+{
+    return gDisplayRunning.load();
 }
 
