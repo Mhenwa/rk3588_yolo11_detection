@@ -10,12 +10,15 @@
 #include <vector>
 
 #include "display.h"
+#include "core/utils/rga_debug_gate.h"
 #include "../compositor/analyzer.h"
+#include "core/log/app_log.h"
 
 namespace
 {
     constexpr int kWallWidth = 1920;
     constexpr int kWallHeight = 1080;
+    constexpr int kCvWaitKeyDelayMs = 1;
 
     std::string NormalizeWindowName(const std::string &window_name)
     {
@@ -61,9 +64,21 @@ namespace
         char **disp_map = nullptr;
     };
 
+    struct CvWindowState
+    {
+        std::mutex mutex;
+        std::unordered_map<std::string, bool> created_windows;
+    };
+
     GtkWallState &WallState()
     {
         static GtkWallState state;
+        return state;
+    }
+
+    CvWindowState &CvState()
+    {
+        static CvWindowState state;
         return state;
     }
 
@@ -126,6 +141,20 @@ namespace modules
     {
         void DisplayNode::InitWindow(const std::string &window_name) const
         {
+            if (rga_debug_display_disabled())
+            {
+                LOGW("DISABLE_DISPLAY_RGA enabled");
+                const std::string window = NormalizeWindowName(window_name);
+                CvWindowState &cv_state = CvState();
+                std::lock_guard<std::mutex> lk(cv_state.mutex);
+                if (cv_state.created_windows.find(window) == cv_state.created_windows.end())
+                {
+                    cv::namedWindow(window, cv::WINDOW_NORMAL);
+                    cv_state.created_windows[window] = true;
+                }
+                return;
+            }
+
             const std::string window = NormalizeWindowName(window_name);
             GtkWallState &state = WallState();
             std::lock_guard<std::mutex> lk(state.mutex);
@@ -151,6 +180,24 @@ namespace modules
                         cv::Point(10, 30),
                         cv::FONT_HERSHEY_SIMPLEX,
                         0.8, cv::Scalar(0, 255, 0), 2);
+
+            if (rga_debug_display_disabled())
+            {
+                CvWindowState &cv_state = CvState();
+                std::lock_guard<std::mutex> lk(cv_state.mutex);
+                if (cv_state.created_windows.find(window) == cv_state.created_windows.end())
+                {
+                    cv::namedWindow(window, cv::WINDOW_NORMAL);
+                    cv_state.created_windows[window] = true;
+                }
+                cv::imshow(window, *frame);
+                const int key = cv::waitKey(kCvWaitKeyDelayMs);
+                if (key == 27 || key == 'q' || key == 'Q')
+                {
+                    return true;
+                }
+                return false;
+            }
 
             int channel_id = 0;
             {
@@ -234,6 +281,19 @@ namespace modules
 
         void DisplayNode::CloseWindow(const std::string &window_name) const
         {
+            if (rga_debug_display_disabled())
+            {
+                const std::string window = NormalizeWindowName(window_name);
+                CvWindowState &cv_state = CvState();
+                std::lock_guard<std::mutex> lk(cv_state.mutex);
+                auto it = cv_state.created_windows.find(window);
+                if (it != cv_state.created_windows.end())
+                {
+                    cv::destroyWindow(window);
+                    cv_state.created_windows.erase(it);
+                }
+                return;
+            }
             (void)window_name;
         }
 

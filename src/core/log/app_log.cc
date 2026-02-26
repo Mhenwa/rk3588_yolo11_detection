@@ -38,12 +38,13 @@ std::string vformat(const char* fmt, va_list args)
     if (len <= 0) {
         return std::string(fmt);
     }
-    std::string buf(static_cast<size_t>(len), '\0');
-    vsnprintf(&buf[0], buf.size() + 1, fmt, args);
-    while (!buf.empty() && (buf.back() == '\n' || buf.back() == '\r')) {
-        buf.pop_back();
+    std::vector<char> buf(static_cast<size_t>(len) + 1, '\0');
+    vsnprintf(buf.data(), buf.size(), fmt, args);
+    std::string msg(buf.data());
+    while (!msg.empty() && (msg.back() == '\n' || msg.back() == '\r')) {
+        msg.pop_back();
     }
-    return buf;
+    return msg;
 }
 
 std::string make_log_path()

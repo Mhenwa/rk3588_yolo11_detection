@@ -12,7 +12,13 @@ JOBS=4
 USE_NATIVE=0
 ENABLE_ASAN=0
 ENABLE_UBSAN=0
+ENABLE_TSAN=0
+ENABLE_DEBUG_SYMBOLS=0
 ENABLE_MALLOC_CHECK=0
+DISABLE_PREPROCESS_RGA=0
+DISABLE_DISPLAY_RGA=0
+ENABLE_RGA_GLOBAL_LOCK=0
+ENABLE_RGA_GUARD_CHECK=0
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="${ROOT_DIR}/src"
@@ -33,13 +39,25 @@ Options:
   --native                  Enable -mcpu=native -mtune=native (safe for on-device build&run)
   --asan                    Enable AddressSanitizer (for heap/UAF/double-free定位)
   --ubsan                   Enable UndefinedBehaviorSanitizer
+  --tsan                    Enable ThreadSanitizer (for data-race/并发内存破坏定位)
+  --debug-symbols           Keep current optimization level, but add debug symbols (-g3)
   --malloc-check            Enable glibc malloc checks at runtime (MALLOC_CHECK_=3)
+  --disable-preprocess-rga  Force preprocess path to CPU (DISABLE_PREPROCESS_RGA=1)
+  --disable-display-rga     Disable RGA display compositor, use OpenCV multi-window show
+  --rga-global-lock         Serialize RGA calls across modules (RGA_GLOBAL_LOCK=1)
+  --rga-guard-check         Enable guard-canary checks around key RGA buffers
   -h, --help                Show this help
 
 Examples:
   $0 --soc rk3588 --native
   $0 --soc rk3576 --type Release --target demo --no-run
   $0 --soc rk3588 --type Debug --asan --ubsan --malloc-check
+  $0 --soc rk3576 --type Debug --disable-preprocess-rga
+  $0 --soc rk3576 --type Debug --disable-display-rga
+  $0 --soc rk3576 --type Debug --rga-global-lock
+  $0 --soc rk3576 --type Debug --rga-guard-check
+  $0 --soc rk3576 --type Release --tsan --no-run
+  $0 --soc rk3576 --type Release --debug-symbols --no-run
 EOF
 }
 
@@ -59,7 +77,13 @@ while [[ $# -gt 0 ]]; do
     --native) USE_NATIVE=1; shift;;
     --asan) ENABLE_ASAN=1; shift;;
     --ubsan) ENABLE_UBSAN=1; shift;;
+    --tsan) ENABLE_TSAN=1; shift;;
+    --debug-symbols) ENABLE_DEBUG_SYMBOLS=1; shift;;
     --malloc-check) ENABLE_MALLOC_CHECK=1; shift;;
+    --disable-preprocess-rga) DISABLE_PREPROCESS_RGA=1; shift;;
+    --disable-display-rga) DISABLE_DISPLAY_RGA=1; shift;;
+    --rga-global-lock) ENABLE_RGA_GLOBAL_LOCK=1; shift;;
+    --rga-guard-check) ENABLE_RGA_GUARD_CHECK=1; shift;;
     -h|--help) usage; exit 0;;
     *) die "Unknown argument: $1";;
   esac
@@ -92,6 +116,11 @@ fi
 
 [[ "${TARGET_SOC}" == "rk3588" || "${TARGET_SOC}" == "rk3576" ]] || die "--soc must be rk3588 or rk3576"
 
+# Sanitizer compatibility checks
+if [[ "${ENABLE_TSAN}" -eq 1 && "${ENABLE_ASAN}" -eq 1 ]]; then
+  die "--tsan cannot be combined with --asan"
+fi
+
 # Toolchain: on-device native compile
 export CC="gcc"
 export CXX="g++"
@@ -117,8 +146,11 @@ if [[ "${USE_NATIVE}" -eq 1 && "${BUILD_TYPE}" == "Release" ]]; then
 fi
 
 SAN_FLAGS=""
-if [[ "${ENABLE_ASAN}" -eq 1 || "${ENABLE_UBSAN}" -eq 1 ]]; then
+if [[ "${ENABLE_ASAN}" -eq 1 || "${ENABLE_UBSAN}" -eq 1 || "${ENABLE_TSAN}" -eq 1 ]]; then
   SAN_FLAGS="-fno-omit-frame-pointer -g3"
+  if [[ "${ENABLE_TSAN}" -eq 1 ]]; then
+    SAN_FLAGS="${SAN_FLAGS} -fsanitize=thread"
+  fi
   if [[ "${ENABLE_ASAN}" -eq 1 ]]; then
     SAN_FLAGS="${SAN_FLAGS} -fsanitize=address"
   fi
@@ -130,8 +162,13 @@ if [[ "${ENABLE_ASAN}" -eq 1 || "${ENABLE_UBSAN}" -eq 1 ]]; then
   fi
 fi
 
-C_FLAGS="${OPT_FLAGS} ${COMMON_CFLAGS} ${NATIVE_FLAGS} ${SAN_FLAGS}"
-CXX_FLAGS="${OPT_FLAGS} ${COMMON_CXXFLAGS} ${NATIVE_FLAGS} ${SAN_FLAGS}"
+DBG_FLAGS=""
+if [[ "${ENABLE_DEBUG_SYMBOLS}" -eq 1 ]]; then
+  DBG_FLAGS="-g3 -fno-omit-frame-pointer"
+fi
+
+C_FLAGS="${OPT_FLAGS} ${COMMON_CFLAGS} ${NATIVE_FLAGS} ${SAN_FLAGS} ${DBG_FLAGS}"
+CXX_FLAGS="${OPT_FLAGS} ${COMMON_CXXFLAGS} ${NATIVE_FLAGS} ${SAN_FLAGS} ${DBG_FLAGS}"
 LD_FLAGS="${SAN_FLAGS}"
 
 # Print config
@@ -145,7 +182,13 @@ echo "CXX=${CXX}"
 echo "USE_NATIVE=${USE_NATIVE}"
 echo "ENABLE_ASAN=${ENABLE_ASAN}"
 echo "ENABLE_UBSAN=${ENABLE_UBSAN}"
+echo "ENABLE_TSAN=${ENABLE_TSAN}"
+echo "ENABLE_DEBUG_SYMBOLS=${ENABLE_DEBUG_SYMBOLS}"
 echo "ENABLE_MALLOC_CHECK=${ENABLE_MALLOC_CHECK}"
+echo "DISABLE_PREPROCESS_RGA=${DISABLE_PREPROCESS_RGA}"
+echo "DISABLE_DISPLAY_RGA=${DISABLE_DISPLAY_RGA}"
+echo "ENABLE_RGA_GLOBAL_LOCK=${ENABLE_RGA_GLOBAL_LOCK}"
+echo "ENABLE_RGA_GUARD_CHECK=${ENABLE_RGA_GUARD_CHECK}"
 echo "JOBS=${JOBS}"
 echo "BUILD_DIR=${BUILD_DIR}"
 echo "==================================="
@@ -185,8 +228,28 @@ if [[ "${DO_RUN}" -eq 1 ]]; then
   if [[ "${ENABLE_UBSAN}" -eq 1 ]]; then
     RUN_ENV+=("UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1")
   fi
+  if [[ "${ENABLE_TSAN}" -eq 1 ]]; then
+    TSAN_SUPP_FILE="${ROOT_DIR}/tools/tsan.supp"
+    TSAN_BASE_OPTIONS="halt_on_error=1:history_size=7:second_deadlock_stack=1:ignore_noninstrumented_modules=1"
+    if [[ -f "${TSAN_SUPP_FILE}" ]]; then
+      TSAN_BASE_OPTIONS="${TSAN_BASE_OPTIONS}:suppressions=${TSAN_SUPP_FILE}"
+    fi
+    RUN_ENV+=("TSAN_OPTIONS=${TSAN_BASE_OPTIONS}")
+  fi
   if [[ "${ENABLE_MALLOC_CHECK}" -eq 1 ]]; then
     RUN_ENV+=("MALLOC_CHECK_=3" "MALLOC_PERTURB_=165")
+  fi
+  if [[ "${DISABLE_PREPROCESS_RGA}" -eq 1 ]]; then
+    RUN_ENV+=("DISABLE_PREPROCESS_RGA=1")
+  fi
+  if [[ "${DISABLE_DISPLAY_RGA}" -eq 1 ]]; then
+    RUN_ENV+=("DISABLE_DISPLAY_RGA=1")
+  fi
+  if [[ "${ENABLE_RGA_GLOBAL_LOCK}" -eq 1 ]]; then
+    RUN_ENV+=("RGA_GLOBAL_LOCK=1")
+  fi
+  if [[ "${ENABLE_RGA_GUARD_CHECK}" -eq 1 ]]; then
+    RUN_ENV+=("RGA_GUARD_CHECK=1")
   fi
 
   if [[ "${#RUN_ENV[@]}" -gt 0 ]]; then

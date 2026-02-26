@@ -1,10 +1,13 @@
 //=====================  C++  =====================
 #include <algorithm>
+#include <cstdlib>
 #include <string>
 //=====================   C   =====================
 #include "system.h"
 //=====================  PRJ  =====================
 #include "analyzer.h"
+#include "core/utils/rga_debug_gate.h"
+#include "display.h"
 
 //#define PTRINT uint32_t
 #define PTRINT uint64_t
@@ -82,6 +85,7 @@ static int srcImg_ConvertTo_dstImg(Image *pDst, Image *pSrc)
     dst.rotation = pDst->rotation;
     rga_set_rect(&dst.rect, 0, 0, pDst->width, pDst->height,
                  pDst->hor_stride, pDst->ver_stride, pDst->fmt);
+    rga_debug_lock();
     if (c_RkRgaBlit(&src, &dst, nullptr))
     {
         printf("%s: rga fail\n", __func__);
@@ -91,6 +95,12 @@ static int srcImg_ConvertTo_dstImg(Image *pDst, Image *pSrc)
     {
         ret = 0;
     }
+    if (!dispBufferCheckGuard())
+    {
+        printf("display RGA wrote out of bounds (guard corrupted)\n");
+        abort();
+    }
+    rga_debug_unlock();
     pthread_mutex_unlock(&gmutex);
 
     return ret;
@@ -176,6 +186,17 @@ static void commitImgtoDispBufMap(int chnId, void *pSrcData, RgaSURF_FORMAT srcF
 
 int videoOutHandle(char *imgData, ImgDesc_t imgDesc)
 {
+    if (rga_debug_display_disabled())
+    {
+        static bool warned = false;
+        if (!warned)
+        {
+            warned = true;
+            printf("DISABLE_DISPLAY_RGA enabled, skip display blit\n");
+        }
+        return 0;
+    }
+
     if (!gppDispMap || !(*gppDispMap))
     {
         return -1;

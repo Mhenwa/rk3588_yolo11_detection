@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "app_log.h"
+#include "core/utils/rga_debug_gate.h"
 #include "drmrga.h"
 #include "im2d.h"
 #include "image_utils.h"
@@ -241,6 +242,8 @@ static int get_rga_fmt(image_format_t fmt)
 static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
                              image_rect_t *src_box, image_rect_t *dst_box, char color)
 {
+    rga_debug_lock();
+
     int ret = 0;
     const int srcWidth = src_img->width;
     const int srcHeight = src_img->height;
@@ -267,6 +270,8 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
     im_rect srect;
     im_rect drect;
     im_rect prect;
+    memset(&srect, 0, sizeof(im_rect));
+    memset(&drect, 0, sizeof(im_rect));
     memset(&prect, 0, sizeof(im_rect));
 
     if (src_box != NULL)
@@ -299,19 +304,21 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
         drect.height = dstHeight;
     }
 
-    rga_buffer_t rga_buf_src;
-    rga_buffer_t rga_buf_dst;
+    rga_buffer_t rga_buf_src = {0};
+    rga_buffer_t rga_buf_dst = {0};
     rga_buffer_t pat;
     rga_buffer_handle_t rga_handle_src = 0;
     rga_buffer_handle_t rga_handle_dst = 0;
     memset(&pat, 0, sizeof(rga_buffer_t));
 
     im_handle_param_t in_param;
+    memset(&in_param, 0, sizeof(im_handle_param_t));
     in_param.width = srcWidth;
     in_param.height = srcHeight;
     in_param.format = srcFmt;
 
     im_handle_param_t dst_param;
+    memset(&dst_param, 0, sizeof(im_handle_param_t));
     dst_param.width = dstWidth;
     dst_param.height = dstHeight;
     dst_param.format = dstFmt;
@@ -441,6 +448,7 @@ err:
     {
         releasebuffer_handle(rga_handle_dst);
     }
+    rga_debug_unlock();
     return ret;
 }
 
@@ -450,6 +458,17 @@ static int convert_image_internal(image_buffer_t *src_img, image_buffer_t *dst_i
 #if defined(DISABLE_RGA)
     return convert_image_cpu(src_img, dst_img, src_box, dst_box, color);
 #else
+    if (rga_debug_preprocess_disabled())
+    {
+        static int warned = 0;
+        if (!warned)
+        {
+            warned = 1;
+            LOGW("DISABLE_PREPROCESS_RGA enabled, preprocess uses CPU path\n");
+        }
+        return convert_image_cpu(src_img, dst_img, src_box, dst_box, color);
+    }
+
     if (src_img->width % 16 == 0 && dst_img->width % 16 == 0)
     {
         int ret = convert_image_rga(src_img, dst_img, src_box, dst_box, color);

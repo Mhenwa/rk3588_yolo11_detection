@@ -1,38 +1,84 @@
 //=====================  C++  =====================
 #include <atomic>
+#include <cstdlib>
+#include <cstring>
 #include <string>
 //=====================   C   =====================
 #include "system.h"
 //=====================  PRJ  =====================
+#include "core/utils/rga_debug_gate.h"
 #include "display.h"
-
-char **dispBufferMap(Display_t *dispDesc)
-{
-    static char *pBuffer = NULL;
-    static Display_t stDispDesc = {0};
-
-    if((dispDesc->width != stDispDesc.width)||(dispDesc->height != stDispDesc.height)){
-        if(pBuffer){
-            free(pBuffer);
-            pBuffer = NULL;
-        }
-        memcpy(&stDispDesc, dispDesc, sizeof(Display_t));
-    }
-    
-    if(NULL == pBuffer)
-        pBuffer = (char *)malloc(3 * dispDesc->width * dispDesc->height);
-    
-    return &pBuffer;
-}
-
 
 static Display_t *gDispDesc = NULL;
 static std::atomic<bool> gDisplayRunning(false);
+static char *gDispBuffer = NULL;
+static char *gDispRawBuffer = NULL;
+static size_t gDispPayloadBytes = 0;
+static size_t gDispGuardBytes = 0;
+static const unsigned char kDispGuardPattern = 0xA5;
+
+char **dispBufferMap(Display_t *dispDesc)
+{
+    static Display_t stDispDesc = {0};
+    if((dispDesc->width != stDispDesc.width)||(dispDesc->height != stDispDesc.height)){
+        if(gDispRawBuffer){
+            free(gDispRawBuffer);
+            gDispRawBuffer = NULL;
+            gDispBuffer = NULL;
+            gDispPayloadBytes = 0;
+            gDispGuardBytes = 0;
+        }
+        memcpy(&stDispDesc, dispDesc, sizeof(Display_t));
+    }
+
+    if(NULL == gDispBuffer) {
+        gDispPayloadBytes = (size_t)(3 * dispDesc->width * dispDesc->height);
+        gDispGuardBytes = rga_debug_guard_check_enabled() ? 4096 : 0;
+        size_t total = gDispPayloadBytes + gDispGuardBytes * 2;
+        gDispRawBuffer = (char *)malloc(total);
+        if (gDispRawBuffer) {
+            if (gDispGuardBytes > 0) {
+                memset(gDispRawBuffer, kDispGuardPattern, gDispGuardBytes);
+                memset(gDispRawBuffer + gDispGuardBytes + gDispPayloadBytes,
+                       kDispGuardPattern,
+                       gDispGuardBytes);
+            }
+            gDispBuffer = gDispRawBuffer + gDispGuardBytes;
+        }
+    }
+    
+    return &gDispBuffer;
+}
+
+bool dispBufferCheckGuard()
+{
+    if (!gDispDesc || !gDispBuffer || !gDispRawBuffer)
+        return true;
+    if (gDispGuardBytes == 0)
+        return true;
+
+    for (size_t i = 0; i < gDispGuardBytes; ++i)
+    {
+        if ((unsigned char)gDispRawBuffer[i] != kDispGuardPattern)
+            return false;
+    }
+    const char *tail = gDispRawBuffer + gDispGuardBytes + gDispPayloadBytes;
+    for (size_t i = 0; i < gDispGuardBytes; ++i)
+    {
+        if ((unsigned char)tail[i] != kDispGuardPattern)
+            return false;
+    }
+    return true;
+}
 static gboolean showWidget(GtkWidget *pImage) {
     char **ppBuf = dispBufferMap(gDispDesc);
     const guchar *pBuf = (const guchar *)*ppBuf;
     if(NULL == pBuf){
         return G_SOURCE_CONTINUE;
+    }
+    if (!dispBufferCheckGuard()) {
+        fprintf(stderr, "display buffer guard corrupted\n");
+        abort();
     }
     
     // 创建一个GdkPixbuf

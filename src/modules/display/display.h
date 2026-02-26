@@ -15,6 +15,7 @@ typedef struct {
 extern char **dispBufferMap(Display_t *dispDesc);
 extern int display(Display_t *dispDesc);
 extern bool displayIsRunning();
+extern bool dispBufferCheckGuard();
 
 #endif
 

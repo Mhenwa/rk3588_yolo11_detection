@@ -103,6 +103,7 @@ add_executable(demo
     app/main.cpp
     app/utils/app_utils.cc
     core/log/app_log.cc
+    core/utils/rga_debug_gate.cc
     core/queue/result_queue.cc
     core/pool/worker_pool.cc
     core/pool/infer_worker.cc
