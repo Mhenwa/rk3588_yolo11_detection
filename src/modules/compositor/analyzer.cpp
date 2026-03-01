@@ -12,8 +12,6 @@
 
 // #define PTRINT uint32_t
 #define PTRINT uint64_t
-#define WIN_WIDTH 1920
-#define WIN_HEIGHT 1080
 /* rotate source image 0 degrees clockwise */
 #define HAL_TRANSFORM_ROT_0 0x00
 
@@ -21,6 +19,8 @@ static pthread_mutex_t gmutex;
 static bool gMutexInited = false;
 static char **gppDispMap = nullptr;
 static int gChnNums = 1;
+static int gWinWidth = DISPLAY_WALL_WIDTH;
+static int gWinHeight = DISPLAY_WALL_HEIGHT;
 
 int analyzer_init(char **ppDispBuf, int chnNums)
 {
@@ -44,6 +44,26 @@ void analyzer_set_channel_count(int chnNums)
     }
     pthread_mutex_lock(&gmutex);
     gChnNums = std::max(1, chnNums);
+    pthread_mutex_unlock(&gmutex);
+}
+
+void analyzer_set_display_size(int width, int height)
+{
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    if (!gMutexInited)
+    {
+        gWinWidth = width;
+        gWinHeight = height;
+        return;
+    }
+
+    pthread_mutex_lock(&gmutex);
+    gWinWidth = width;
+    gWinHeight = height;
     pthread_mutex_unlock(&gmutex);
 }
 
@@ -128,16 +148,16 @@ static RgaSURF_FORMAT rgaFmt(char *strFmt)
     return RK_FORMAT_UNKNOWN;
 }
 
-static PTRINT calcBufMapOffset(int chnId, int units)
+static PTRINT calcBufMapOffset(int chnId, int units, int winWidth, int winHeight)
 {
     int xUnitOffset = chnId % units;
     int yUnitOffset = chnId / units;
 
-    int winWidth = WIN_WIDTH / units;
-    int winHeight = WIN_HEIGHT / units;
+    int cellWidth = winWidth / units;
+    int cellHeight = winHeight / units;
 
     PTRINT bufMapOffset =
-        3 * (yUnitOffset * winHeight * WIN_WIDTH + xUnitOffset * winWidth);
+        3 * (yUnitOffset * cellHeight * winWidth + xUnitOffset * cellWidth);
     return bufMapOffset;
 }
 
@@ -150,11 +170,28 @@ static void commitImgtoDispBufMap(int chnId, void *pSrcData, RgaSURF_FORMAT srcF
         return;
     }
 
+    int chnNums = gChnNums;
+    int winWidth = gWinWidth;
+    int winHeight = gWinHeight;
+    if (gMutexInited)
+    {
+        pthread_mutex_lock(&gmutex);
+        chnNums = gChnNums;
+        winWidth = gWinWidth;
+        winHeight = gWinHeight;
+        pthread_mutex_unlock(&gmutex);
+    }
+
+    if (chnNums <= 0 || winWidth <= 0 || winHeight <= 0)
+    {
+        return;
+    }
+
     int units = 0;
     while (1)
     {
         units++;
-        if (gChnNums <= (units * units))
+        if (chnNums <= (units * units))
         {
             break;
         }
@@ -173,12 +210,12 @@ static void commitImgtoDispBufMap(int chnId, void *pSrcData, RgaSURF_FORMAT srcF
     srcImage.rotation = HAL_TRANSFORM_ROT_0;
     srcImage.pBuf = pSrcData;
 
-    PTRINT dstBufPtr = (PTRINT)*gppDispMap + calcBufMapOffset(chnId, units);
+    PTRINT dstBufPtr = (PTRINT)*gppDispMap + calcBufMapOffset(chnId, units, winWidth, winHeight);
     dstImage.fmt = RK_FORMAT_RGB_888;
-    dstImage.width = WIN_WIDTH / units;
-    dstImage.height = WIN_HEIGHT / units;
-    dstImage.hor_stride = WIN_WIDTH;
-    dstImage.ver_stride = WIN_HEIGHT / units;
+    dstImage.width = winWidth / units;
+    dstImage.height = winHeight / units;
+    dstImage.hor_stride = winWidth;
+    dstImage.ver_stride = winHeight / units;
     dstImage.rotation = HAL_TRANSFORM_ROT_0;
     dstImage.pBuf = (void *)dstBufPtr;
 

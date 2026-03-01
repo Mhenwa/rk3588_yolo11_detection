@@ -9,10 +9,18 @@ namespace modules
 {
     namespace display
     {
+        struct GtkWindowOptions
+        {
+            int width = 0;
+            int height = 0;
+            bool fullscreen = false;
+        };
 
         class DisplayNode
         {
         public:
+            static void ConfigureGtkWindow(const GtkWindowOptions &options);
+
             void InitWindow(const std::string &window_name) const;
 
             bool ShowFrame(const std::string &window_name,

@@ -6,6 +6,7 @@
 
 extern int analyzer_init(char **ppDispBuf, int chnNums);
 extern void analyzer_set_channel_count(int chnNums);
+extern void analyzer_set_display_size(int width, int height);
 
 typedef struct {
     char fmt[16];

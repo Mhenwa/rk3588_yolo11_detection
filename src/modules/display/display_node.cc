@@ -16,8 +16,6 @@
 
 namespace
 {
-    constexpr int kWallWidth = 1920;
-    constexpr int kWallHeight = 1080;
     constexpr int kCvWaitKeyDelayMs = 1;
 
     std::string NormalizeWindowName(const std::string &window_name)
@@ -57,10 +55,13 @@ namespace
         std::mutex mutex;
         bool started = false;
         bool display_seen_running = false;
+        int wall_width = DISPLAY_WALL_WIDTH;
+        int wall_height = DISPLAY_WALL_HEIGHT;
+        bool fullscreen = false;
         int next_channel_id = 0;
         std::unordered_map<std::string, int> channel_map;
         std::thread thread;
-        Display_t desc = {"dock_blindspot", 0, 0, kWallWidth, kWallHeight};
+        Display_t desc = {"dock_blindspot", 0, 0, DISPLAY_WALL_WIDTH, DISPLAY_WALL_HEIGHT, false};
         char **disp_map = nullptr;
     };
 
@@ -112,8 +113,10 @@ namespace
         std::string &title = WindowTitleStore();
         title = NormalizeWindowName(window_name);
         state->desc.winTitle = title.c_str();
-        state->desc.width = kWallWidth;
-        state->desc.height = kWallHeight;
+        state->desc.width = state->wall_width;
+        state->desc.height = state->wall_height;
+        state->desc.fullscreen = state->fullscreen;
+        analyzer_set_display_size(state->desc.width, state->desc.height);
 
         state->disp_map = dispBufferMap(&state->desc);
         if (!state->disp_map || !(*state->disp_map))
@@ -139,6 +142,21 @@ namespace modules
 {
     namespace display
     {
+        void DisplayNode::ConfigureGtkWindow(const GtkWindowOptions &options)
+        {
+            GtkWallState &state = WallState();
+            std::lock_guard<std::mutex> lk(state.mutex);
+            if (state.started)
+            {
+                LOGW("display already started, ignore gtk window reconfigure");
+                return;
+            }
+
+            state.wall_width = options.width > 0 ? options.width : DISPLAY_WALL_WIDTH;
+            state.wall_height = options.height > 0 ? options.height : DISPLAY_WALL_HEIGHT;
+            state.fullscreen = options.fullscreen;
+        }
+
         void DisplayNode::InitWindow(const std::string &window_name) const
         {
             if (rga_debug_display_disabled())

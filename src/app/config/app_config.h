@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "core/types/app_core_types.h"
+#include "modules/display/display.h"
 #include "nlohmann/json.hpp"
 
 constexpr double kDefaultConfThreshold = 0.25; // Default confidence threshold.
@@ -36,6 +37,9 @@ struct AppConfig
     std::string model_path;
     std::string label_path;
     InputType mode_type = INPUT_VIDEO_CAMERA; // 事实上只有这一个，原来的模式被删除了
+    int gtk_window_width = DISPLAY_WALL_WIDTH;
+    int gtk_window_height = DISPLAY_WALL_HEIGHT;
+    bool gtk_window_fullscreen = false;
 
     std::vector<SourceConfig> sources; // 多路的各路配置
 };

@@ -54,6 +54,7 @@ private:
     int channel_id_ = -1;
     bool opened_ = false;
     bool stop_ = false;
+    bool first_frame_logged_ = false;
     std::unique_ptr<Capturer> capturer_;
     std::mutex mu_;
     std::condition_variable cv_;

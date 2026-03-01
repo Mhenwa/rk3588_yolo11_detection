@@ -155,6 +155,31 @@ namespace
         return true;
     }
 
+    bool read_bool_optional(const json &obj,
+                            const char *key,
+                            bool *out,
+                            bool *out_set,
+                            const std::string &context,
+                            std::string *error)
+    {
+        auto it = obj.find(key);
+        if (it == obj.end())
+        {
+            if (out_set)
+                *out_set = false;
+            return true;
+        }
+        if (!it->is_boolean())
+        {
+            return set_error(error, "config " + context + "." + key + " must be boolean");
+        }
+        if (out)
+            *out = it->get<bool>();
+        if (out_set)
+            *out_set = true;
+        return true;
+    }
+
     bool parse_dimensions(const json &obj,
                           const std::string &context,
                           int *width,
@@ -277,6 +302,55 @@ namespace
         }
         return set_error(error, "invalid mode in general.mode: " + raw);
     }
+
+    bool parse_gtk_window_config(const json &general,
+                                 AppConfig *cfg,
+                                 std::string *error)
+    {
+        if (!cfg)
+        {
+            return set_error(error, "internal error: app config output missing");
+        }
+
+        auto window_it = general.find("gtk_window");
+        if (window_it == general.end())
+        {
+            return true;
+        }
+        if (!window_it->is_object())
+        {
+            return set_error(error, "config general.gtk_window must be object");
+        }
+        const json &window_cfg = *window_it;
+        const std::string context = "general.gtk_window";
+
+        int width = cfg->gtk_window_width;
+        int height = cfg->gtk_window_height;
+        bool width_set = false;
+        bool height_set = false;
+        if (!parse_dimensions(window_cfg, context,
+                              &width, &width_set,
+                              &height, &height_set,
+                              error))
+        {
+            return false;
+        }
+        if (width_set && height_set)
+        {
+            cfg->gtk_window_width = width;
+            cfg->gtk_window_height = height;
+        }
+
+        bool fullscreen = cfg->gtk_window_fullscreen;
+        if (!read_bool_optional(window_cfg, "fullscreen",
+                                &fullscreen, nullptr,
+                                context, error))
+        {
+            return false;
+        }
+        cfg->gtk_window_fullscreen = fullscreen;
+        return true;
+    }
 } // namespace
 
 bool parse_config(const nlohmann::json &root,
@@ -319,6 +393,10 @@ bool parse_config(const nlohmann::json &root,
     }
     if (!read_required_string(*general, "label",
                               &cfg->label_path, "general", error))
+    {
+        return false;
+    }
+    if (!parse_gtk_window_config(*general, cfg, error))
     {
         return false;
     }

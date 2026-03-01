@@ -2,12 +2,14 @@
   "general": {
     "mode": "video_camera",
     "label": "./model/best3_labels_lists.txt",
-    "model_path": "./model/yolo11srk3576.rknn"
+    "model_path": "./model/yolo11srk3576.rknn",
+    "gtk_window": {
+      "width": 1280,
+      "height": 800,
+      "fullscreen": false
+    }
   },
   "modes": {
-    "image": {
-      "input": "./datasets/bug2.jpg"
-    },
     "video_camera": {
       "sources": [
         {

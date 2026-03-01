@@ -104,7 +104,7 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data)
     gDisplayRunning.store(false);
     gtk_main_quit();
 }
-static GtkWidget *disp_init(const char *strWinTitle, int32_t width, int32_t height)
+static GtkWidget *disp_init(const char *strWinTitle, int32_t width, int32_t height, bool fullscreen)
 {
     gtk_init(NULL, NULL); // 初始化 GTK+ 库
 
@@ -114,6 +114,8 @@ static GtkWidget *disp_init(const char *strWinTitle, int32_t width, int32_t heig
         g_signal_connect(pWindow, "destroy", G_CALLBACK(on_window_destroy), NULL);
         gtk_window_set_title(GTK_WINDOW(pWindow), strWinTitle);
         gtk_window_set_default_size(GTK_WINDOW(pWindow), width, height);
+        if (fullscreen)
+            gtk_window_fullscreen(GTK_WINDOW(pWindow));
     }
     else
     {
@@ -144,7 +146,7 @@ static int32_t disp_set_loop(GtkWidget *pWindow, GSourceFunc pCamUpdate)
 }
 int display(Display_t *disp)
 {
-    GtkWidget *pWindow = disp_init(disp->winTitle, disp->width, disp->height);
+    GtkWidget *pWindow = disp_init(disp->winTitle, disp->width, disp->height, disp->fullscreen);
     if (pWindow)
     {
         gDisplayRunning.store(true);

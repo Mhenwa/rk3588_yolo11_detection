@@ -48,6 +48,9 @@ int main()
     bool ok = parse_config(root, &cfg, &error);
     check(ok, "parse video_camera minimal config");
     check(cfg.mode_type == INPUT_VIDEO_CAMERA, "video_camera mode type");
+    check(cfg.gtk_window_width == DISPLAY_WALL_WIDTH, "gtk window width default");
+    check(cfg.gtk_window_height == DISPLAY_WALL_HEIGHT, "gtk window height default");
+    check(!cfg.gtk_window_fullscreen, "gtk window fullscreen default");
     check(cfg.sources.size() == 1, "video source exists");
   }
 
@@ -90,6 +93,42 @@ int main()
       check(!src.threads_set, "threads unset");
       check(src.threads == 3, "threads default");
     }
+  }
+
+  {
+    const char *text = R"JSON(
+        {
+          "general": {
+            "mode": "video_camera",
+            "label": "labels.txt",
+            "model_path": "model.rknn",
+            "gtk_window": {
+              "width": 1920,
+              "height": 1080,
+              "fullscreen": true
+            }
+          },
+          "modes": {
+            "video_camera": {
+              "sources": [
+                {
+                  "name": "video.0",
+                  "type": "video",
+                  "input": "video.mp4"
+                }
+              ]
+            }
+          }
+        }
+        )JSON";
+    nlohmann::json root = parse_json(text);
+    AppConfig cfg;
+    std::string error;
+    bool ok = parse_config(root, &cfg, &error);
+    check(ok, "parse gtk window config");
+    check(cfg.gtk_window_width == 1920, "gtk window width parsed");
+    check(cfg.gtk_window_height == 1080, "gtk window height parsed");
+    check(cfg.gtk_window_fullscreen, "gtk window fullscreen parsed");
   }
 
   {
