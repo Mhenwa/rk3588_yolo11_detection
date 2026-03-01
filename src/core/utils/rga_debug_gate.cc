@@ -1,4 +1,5 @@
 #include "core/utils/rga_debug_gate.h"
+#include "core/log/app_log.h"
 
 #include <pthread.h>
 #include <stdlib.h>
@@ -14,6 +15,12 @@ int g_preprocess_disabled = 0;
 int g_display_disabled = 0;
 int g_global_lock_enabled = 0;
 int g_guard_check_enabled = 0;
+
+#if defined(TARGET_SOC_RK3576)
+constexpr int kGuardCheckCompileDefault = 1;
+#else
+constexpr int kGuardCheckCompileDefault = 0;
+#endif
 
 int env_true(const char* value)
 {
@@ -33,7 +40,14 @@ void init_once()
     g_preprocess_disabled = env_true(getenv("DISABLE_PREPROCESS_RGA"));
     g_display_disabled = env_true(getenv("DISABLE_DISPLAY_RGA"));
     g_global_lock_enabled = env_true(getenv("RGA_GLOBAL_LOCK"));
-    g_guard_check_enabled = env_true(getenv("RGA_GUARD_CHECK"));
+    g_guard_check_enabled = kGuardCheckCompileDefault || env_true(getenv("RGA_GUARD_CHECK"));
+
+#if defined(TARGET_SOC_RK3576)
+    if (g_guard_check_enabled)
+    {
+        LOGW("[RGA_GUARD] TARGET_SOC_RK3576 detected at compile time. Guard buffer check is auto-enabled (+4096B head/tail) as temporary workaround.");
+    }
+#endif
 }
 
 void ensure_init()

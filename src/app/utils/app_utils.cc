@@ -62,7 +62,7 @@ void print_run_report(const RunReport& report,
                       const std::vector<SourceRunReport>* sources)
 {
     if (report.type == INPUT_VIDEO_CAMERA && sources && !sources->empty()) {
-        puts("");
+        LOGI("");
         LOGI("===== Run Report =====\n");
         LOGI("Mode: video_camera\n");
         for (const auto& src : *sources) {
@@ -105,7 +105,7 @@ void print_run_report(const RunReport& report,
     else if (report.type == INPUT_MIPI_CAMERA) mode = "mipi_camera";
     else if (report.type == INPUT_RTSP) mode = "rtsp";
     else if (report.type == INPUT_VIDEO_CAMERA) mode = "video_camera";
-    puts("");
+    LOGI("");
     LOGI("===== Run Report =====\n");
     LOGI("Mode: %s\n", mode);
     LOGI("Status: %s\n", report.ok ? "ok" : "failed");

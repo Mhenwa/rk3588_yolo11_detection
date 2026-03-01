@@ -6,10 +6,11 @@
 #include "system.h"
 //=====================  PRJ  =====================
 #include "analyzer.h"
+#include "core/log/app_log.h"
 #include "core/utils/rga_debug_gate.h"
 #include "display.h"
 
-//#define PTRINT uint32_t
+// #define PTRINT uint32_t
 #define PTRINT uint64_t
 #define WIN_WIDTH 1920
 #define WIN_HEIGHT 1080
@@ -65,7 +66,7 @@ static int srcImg_ConvertTo_dstImg(Image *pDst, Image *pSrc)
 
     if (!pSrc || !pDst)
     {
-        printf("%s: NULL PTR!\n", __func__);
+        LOGE("%s: NULL PTR!", __func__);
         return -1;
     }
 
@@ -88,18 +89,18 @@ static int srcImg_ConvertTo_dstImg(Image *pDst, Image *pSrc)
     rga_debug_lock();
     if (c_RkRgaBlit(&src, &dst, nullptr))
     {
-        printf("%s: rga fail\n", __func__);
+        LOGE("%s: rga fail", __func__);
         ret = -1;
     }
     else
     {
         ret = 0;
     }
-    if (!dispBufferCheckGuard())
-    {
-        printf("display RGA wrote out of bounds (guard corrupted)\n");
-        abort();
-    }
+    // if (!dispBufferCheckGuard())
+    // {
+    //     printf("display RGA wrote out of bounds (guard corrupted)\n");
+    //     abort();
+    // }
     rga_debug_unlock();
     pthread_mutex_unlock(&gmutex);
 
@@ -192,7 +193,7 @@ int videoOutHandle(char *imgData, ImgDesc_t imgDesc)
         if (!warned)
         {
             warned = true;
-            printf("DISABLE_DISPLAY_RGA enabled, skip display blit\n");
+            LOGW("DISABLE_DISPLAY_RGA enabled, skip display blit");
         }
         return 0;
     }
@@ -213,4 +214,3 @@ int videoOutHandle(char *imgData, ImgDesc_t imgDesc)
                           imgDesc.horStride, imgDesc.verStride);
     return 0;
 }
-

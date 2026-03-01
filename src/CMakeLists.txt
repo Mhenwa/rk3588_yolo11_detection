@@ -175,6 +175,9 @@ endif()
 if (TARGET_SOC STREQUAL "rk3588")
     target_compile_definitions(demo PRIVATE LIBRGA_IM2D_HANDLE)
 endif()
+if (TARGET_SOC STREQUAL "rk3576")
+    target_compile_definitions(demo PRIVATE TARGET_SOC_RK3576)
+endif()
 
 target_link_libraries(demo
     PRIVATE

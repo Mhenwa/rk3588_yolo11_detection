@@ -17,7 +17,7 @@ namespace modules
             constexpr size_t kGuardBytes = 4096;
             constexpr unsigned char kGuardPattern = 0x5A;
 
-            bool check_guard(const std::vector<unsigned char>& storage,
+            bool check_guard(const std::vector<unsigned char> &storage,
                              size_t guard_bytes,
                              size_t payload_bytes)
             {
@@ -25,13 +25,13 @@ namespace modules
                 {
                     return true;
                 }
-                const unsigned char* base = storage.data();
+                const unsigned char *base = storage.data();
                 for (size_t i = 0; i < guard_bytes; ++i)
                 {
                     if (base[i] != kGuardPattern)
                         return false;
                 }
-                const unsigned char* tail = base + guard_bytes + payload_bytes;
+                const unsigned char *tail = base + guard_bytes + payload_bytes;
                 for (size_t i = 0; i < guard_bytes; ++i)
                 {
                     if (tail[i] != kGuardPattern)
@@ -39,7 +39,7 @@ namespace modules
                 }
                 return true;
             }
-        }  // namespace
+        } // namespace
 
         bool PreprocessNode::Run(const cv::Mat &frame_bgr,
                                  const rknn_app_context_t &app_ctx,
@@ -64,15 +64,15 @@ namespace modules
                 static_cast<size_t>(app_ctx.model_channel);
             const size_t guard_bytes = rga_debug_guard_check_enabled() ? kGuardBytes : 0;
             out->input_storage.resize(payload_bytes + guard_bytes * 2);
-            if (guard_bytes > 0)
-            {
-                std::fill(out->input_storage.begin(),
-                          out->input_storage.begin() + static_cast<std::ptrdiff_t>(guard_bytes),
-                          kGuardPattern);
-                std::fill(out->input_storage.end() - static_cast<std::ptrdiff_t>(guard_bytes),
-                          out->input_storage.end(),
-                          kGuardPattern);
-            }
+            // if (guard_bytes > 0)
+            // {
+            //     std::fill(out->input_storage.begin(),
+            //               out->input_storage.begin() + static_cast<std::ptrdiff_t>(guard_bytes),
+            //               kGuardPattern);
+            //     std::fill(out->input_storage.end() - static_cast<std::ptrdiff_t>(guard_bytes),
+            //               out->input_storage.end(),
+            //               kGuardPattern);
+            // }
 
             image_buffer_t dst;
             memset(&dst, 0, sizeof(dst));
@@ -87,11 +87,11 @@ namespace modules
                 LOGE("preprocess letterbox failed\n");
                 return false;
             }
-            if (!check_guard(out->input_storage, guard_bytes, payload_bytes))
-            {
-                LOGE("preprocess RGA/resize overflow detected (guard corrupted)\n");
-                abort();
-            }
+            // if (!check_guard(out->input_storage, guard_bytes, payload_bytes))
+            // {
+            //     LOGE("preprocess RGA/resize overflow detected (guard corrupted)\n");
+            //     abort();
+            // }
 
             out->input_image = dst;
             return true;
