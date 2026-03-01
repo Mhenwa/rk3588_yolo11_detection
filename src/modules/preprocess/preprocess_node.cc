@@ -14,7 +14,7 @@ namespace modules
     {
         namespace
         {
-            constexpr size_t kGuardBytes = 4096;
+            constexpr size_t kGuardBytes = 8192;
             constexpr unsigned char kGuardPattern = 0x5A;
 
             bool check_guard(const std::vector<unsigned char> &storage,

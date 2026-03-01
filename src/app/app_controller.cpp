@@ -28,6 +28,7 @@ namespace
     constexpr int kReconnectMaxAttempts = 10;
     const auto kReconnectBaseDelay = std::chrono::milliseconds(200);
     const auto kReconnectMaxDelay = std::chrono::milliseconds(5000);
+    constexpr int kRtspReadFailThreshold = 3;
 
     // 单路输入运行时上下文：配置、组件句柄与统计信息都在这里维护。
     struct SourceRuntime
@@ -239,6 +240,7 @@ namespace
         bool source_ok = true;
         bool got_frame = false;
         bool keep_error_window = false;
+        int capture_fail_streak = 0;
         SourceMetrics metrics;
 
         const auto run_t0 = std::chrono::steady_clock::now();
@@ -281,6 +283,18 @@ namespace
             core::types::SourceFrame input_frame;
             if (!runtime->source->Read(&input_frame))
             {
+                ++capture_fail_streak;
+                const int read_fail_threshold =
+                    (runtime->cfg.type == INPUT_RTSP) ? kRtspReadFailThreshold : 1;
+                if (capture_fail_streak < read_fail_threshold)
+                {
+                    LOGW("source read failed (%d/%d before reconnect): %s\n",
+                         capture_fail_streak,
+                         read_fail_threshold,
+                         runtime->cfg.input.c_str());
+                    continue;
+                }
+                capture_fail_streak = 0;
                 LOGE("source frame capture failed: %s\n", runtime->cfg.input.c_str());
                 if (!reconnect_source(runtime, runtime->cfg.input, "capture failed"))
                 {
@@ -294,6 +308,7 @@ namespace
                 next_frame_time = std::chrono::steady_clock::now() + frame_interval;
                 continue;
             }
+            capture_fail_streak = 0;
 
             // DecodeNode
             cv::Mat decoded;

@@ -36,7 +36,7 @@ char **dispBufferMap(Display_t *dispDesc)
     if (NULL == gDispBuffer)
     {
         gDispPayloadBytes = (size_t)(3 * dispDesc->width * dispDesc->height);
-        gDispGuardBytes = rga_debug_guard_check_enabled() ? 4096 : 0;
+        gDispGuardBytes = rga_debug_guard_check_enabled() ? 8192 : 0;
         size_t total = gDispPayloadBytes + gDispGuardBytes * 2;
         gDispRawBuffer = (char *)malloc(total);
         if (gDispRawBuffer)

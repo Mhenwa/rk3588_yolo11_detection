@@ -21,7 +21,8 @@ namespace modules
         namespace
         {
             constexpr size_t kMaxQueuedFrames = 4;
-            constexpr int kReadTimeoutMs = 1500;
+            // RTSP live stream may need longer to deliver the first keyframe.
+            constexpr int kReadTimeoutMs = 10000;
 
             std::once_flag g_gst_init_once;
             std::mutex g_route_mu;
@@ -32,7 +33,8 @@ namespace modules
             {
                 std::string lower = codec;
                 std::transform(lower.begin(), lower.end(), lower.begin(),
-                               [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                               [](unsigned char c)
+                               { return static_cast<char>(std::tolower(c)); });
                 if (lower == "h265" || lower == "hevc")
                 {
                     return "h265";
@@ -146,9 +148,8 @@ namespace modules
         bool RtspSource::Open()
         {
             Close();
-            std::call_once(g_gst_init_once, []() {
-                gst_init(nullptr, nullptr);
-            });
+            std::call_once(g_gst_init_once, []()
+                           { gst_init(nullptr, nullptr); });
             return OpenCaptureWithCodec(url_, codec_);
         }
 
@@ -187,9 +188,8 @@ namespace modules
                 {
                     return false;
                 }
-                cv_.wait_for(lk, std::chrono::milliseconds(kReadTimeoutMs), [this]() {
-                    return stop_ || !frames_.empty();
-                });
+                cv_.wait_for(lk, std::chrono::milliseconds(kReadTimeoutMs), [this]()
+                             { return stop_ || !frames_.empty(); });
                 if (stop_ || !opened_ || frames_.empty())
                 {
                     return false;
