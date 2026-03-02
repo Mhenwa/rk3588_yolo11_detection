@@ -666,7 +666,6 @@ Q8 HD Webcam: Q8 HD Webcam (usb-fc800000.usb-1):
           "threads": 1,
           "width": 800,
           "height": 600,
-          "buffers": 2,
           "fps": 30,
           "format": "mjpg",
           "conf_threshold": 0.4
@@ -678,7 +677,6 @@ Q8 HD Webcam: Q8 HD Webcam (usb-fc800000.usb-1):
           "threads": 1,
           "width": 800,
           "height": 600,
-          "buffers": 2,
           "fps": 30,
           "format": "mjpg",
           "conf_threshold": 0.4
@@ -690,7 +688,6 @@ Q8 HD Webcam: Q8 HD Webcam (usb-fc800000.usb-1):
           "threads": 1,
           "width": 800,
           "height": 600,
-          "buffers": 2,
           "fps": 30,
           "format": "mjpg",
           "conf_threshold": 0.4
@@ -772,7 +769,6 @@ Q8 HD Webcam: Q8 HD Webcam (usb-fc800000.usb-1):
           "threads": 1,
           "width": 800,
           "height": 600,
-          "buffers": 2,
           "fps": 30,
           "format": "mjpg",
           "conf_threshold": 0.4
@@ -784,7 +780,6 @@ Q8 HD Webcam: Q8 HD Webcam (usb-fc800000.usb-1):
           "threads": 1,
           "width": 800,
           "height": 600,
-          "buffers": 2,
           "fps": 30,
           "format": "mjpg",
           "conf_threshold": 0.4
@@ -796,7 +791,6 @@ Q8 HD Webcam: Q8 HD Webcam (usb-fc800000.usb-1):
           "threads": 1,
           "width": 800,
           "height": 600,
-          "buffers": 2,
           "fps": 30,
           "format": "mjpg",
           "conf_threshold": 0.4
@@ -815,14 +809,13 @@ Q8 HD Webcam: Q8 HD Webcam (usb-fc800000.usb-1):
 
 - 如果是 `image` ，则读取 `modes.image` 下的内容，忽略其他配置。
 
-`video_camera` 下的每个输入源支持配置 `name` / `type` / `input` / `threads` / `width` / `height` / `buffers` / `fps` / `format` / `conf_threshold`。
+`video_camera` 下的每个输入源支持配置 `name` / `type` / `input` / `threads` / `width` / `height` / `fps` / `format` / `conf_threshold`。
 
 - `type` 可选；省略时会根据 `name` 前缀 `video.` / `camera.` 自动判断。
 - `width` 与 `height` 必须同时出现。
 
 可选参数:
 - `width/height`: video 输入会在推理前 resize，camera 输入会尝试设置采集分辨率(驱动可能回落)
-- `buffers`: 仅 camera 输入有效，对应 V4L2 缓冲区数量，多路时建议 2~3，默认 4
 - `fps`: 最大处理帧率上限（video/camera 都适用），默认 30
 - `format`: 仅 camera 输入有效，可选 `auto`/`mjpeg`/`yuyv`/`nv12`，默认 auto
 - `conf_threshold`: 控制画框的可信度阈值，默认 0.25
