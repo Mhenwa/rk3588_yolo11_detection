@@ -5,7 +5,7 @@
 //=====================   C   =====================
 #include "system.h"
 //=====================  PRJ  =====================
-#include "analyzer.h"
+#include "grid_compositor.h"
 #include "core/log/app_log.h"
 #include "core/utils/rga_debug_gate.h"
 #include "display.h"
@@ -22,7 +22,7 @@ static int gChnNums = 1;
 static int gWinWidth = DISPLAY_WALL_WIDTH;
 static int gWinHeight = DISPLAY_WALL_HEIGHT;
 
-int analyzer_init(char **ppDispBuf, int chnNums)
+int grid_compositor_init(char **ppDispBuf, int chnNums)
 {
     gppDispMap = ppDispBuf;
     gChnNums = std::max(1, chnNums);
@@ -36,7 +36,7 @@ int analyzer_init(char **ppDispBuf, int chnNums)
     return 0;
 }
 
-void analyzer_set_channel_count(int chnNums)
+void grid_compositor_set_channel_count(int chnNums)
 {
     if (!gMutexInited)
     {
@@ -47,7 +47,7 @@ void analyzer_set_channel_count(int chnNums)
     pthread_mutex_unlock(&gmutex);
 }
 
-void analyzer_set_display_size(int width, int height)
+void grid_compositor_set_display_size(int width, int height)
 {
     if (width <= 0 || height <= 0)
     {
@@ -222,7 +222,7 @@ static void commitImgtoDispBufMap(int chnId, void *pSrcData, RgaSURF_FORMAT srcF
     srcImg_ConvertTo_dstImg(&dstImage, &srcImage);
 }
 
-int videoOutHandle(char *imgData, ImgDesc_t imgDesc)
+int grid_compositor_submit_frame(char *imgData, GridCompositorImgDesc_t imgDesc)
 {
     if (rga_debug_display_disabled())
     {

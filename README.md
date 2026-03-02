@@ -24,17 +24,22 @@ sudo apt-get install qtbase5-dev
 2. 编写配置文件`config.json`，见`config.json.example`
 3. 运行脚本`build_linux_rk.sh`
 
-4. 效果，上方为USB摄像头输入，下方为RTSP输入。图像分辨率均为1280x720，模型Yolov11s
+4. 效果，左方为USB摄像头输入，右方为RTSP输入。图像分辨率均为1920x1080，模型Yolov11s
 
-![image-20260301200819681](./assets/image-20260301200819681.png)
+![image-20260301200819681](./assets/2026-03-02_125748.png)
 
 ## Todo
 
 1. rk3576下RGA调用可能有越界写，目前需要开辟更大的缓冲区防止报错？
-2. RTSP输入超过1000p会黑屏？
-3. 非零拷贝
-4. qt5重写显示UI
+2. 非零拷贝
+3. qt5重写显示UI
+4. 单路单线程优化
 
 ## 参考
 
 [rknn_model_zoo](https://github.com/airockchip/rknn_model_zoo)和[EASY-EAI](https://github.com/EASY-EAI/EASY-EAI-Toolkit-3576)
+
+## 其它
+
+RTSP模拟：[EasyRTSPServer
+](https://github.com/EasyDarwin/EasyRTSPServer)

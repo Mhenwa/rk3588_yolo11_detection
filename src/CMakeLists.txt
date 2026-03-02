@@ -115,7 +115,7 @@ add_executable(demo
     modules/source/usb_cam_source.cc
     modules/source/mipi_source.cc
     modules/source/source_factory.cc
-    modules/compositor/analyzer.cpp
+    modules/compositor/grid_compositor.cpp
     modules/display/display.cpp
     modules/display/display_node.cc
     modules/decode/decode_node.cc

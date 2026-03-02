@@ -11,7 +11,7 @@
 
 #include "display.h"
 #include "core/utils/rga_debug_gate.h"
-#include "../compositor/analyzer.h"
+#include "../compositor/grid_compositor.h"
 #include "core/log/app_log.h"
 
 namespace
@@ -98,7 +98,7 @@ namespace
         }
         const int channel_id = state->next_channel_id++;
         state->channel_map[window_name] = channel_id;
-        analyzer_set_channel_count(std::max(1, state->next_channel_id));
+        grid_compositor_set_channel_count(std::max(1, state->next_channel_id));
         return channel_id;
     }
 
@@ -116,7 +116,7 @@ namespace
         state->desc.width = state->wall_width;
         state->desc.height = state->wall_height;
         state->desc.fullscreen = state->fullscreen;
-        analyzer_set_display_size(state->desc.width, state->desc.height);
+        grid_compositor_set_display_size(state->desc.width, state->desc.height);
 
         state->disp_map = dispBufferMap(&state->desc);
         if (!state->disp_map || !(*state->disp_map))
@@ -124,7 +124,7 @@ namespace
             return false;
         }
 
-        if (0 != analyzer_init(state->disp_map, 1))
+        if (0 != grid_compositor_init(state->disp_map, 1))
         {
             return false;
         }
@@ -238,7 +238,7 @@ namespace modules
                 src = frame->clone();
             }
 
-            ImgDesc_t img_desc = {};
+            GridCompositorImgDesc_t img_desc = {};
             img_desc.chnId = channel_id;
             img_desc.width = src.cols;
             img_desc.height = src.rows;
@@ -246,7 +246,7 @@ namespace modules
             img_desc.verStride = src.rows;
             img_desc.dataSize = static_cast<int>(src.total() * src.elemSize());
             strncpy(img_desc.fmt, "BGR", sizeof(img_desc.fmt) - 1);
-            videoOutHandle(reinterpret_cast<char *>(src.data), img_desc);
+            grid_compositor_submit_frame(reinterpret_cast<char *>(src.data), img_desc);
 
             {
                 GtkWallState &state = WallState();
