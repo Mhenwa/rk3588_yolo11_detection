@@ -6,7 +6,7 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "core/types/frame_types.h"
+#include "core/types/vision_types.h"
 
 namespace modules {
 namespace decode {

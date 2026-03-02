@@ -7,7 +7,7 @@
 #include <string>
 //=====================   C   =====================
 #include <gst/video/video-info.h>
-#include "system.h"
+#include <pthread.h>
 //=====================  SDK  =====================
 #include "system_opt.h"
 #include "gst_opt.h"

@@ -4,7 +4,7 @@
 #include <cstring>
 #include <string>
 //=====================   C   =====================
-#include "system.h"
+#include <gtk/gtk.h>
 //=====================  PRJ  =====================
 #include "core/utils/rga_debug_gate.h"
 #include "display.h"

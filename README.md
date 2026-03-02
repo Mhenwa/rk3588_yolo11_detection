@@ -28,6 +28,17 @@ sudo apt-get install qtbase5-dev
 
 ![image-20260301200819681](./assets/2026-03-02_125748.png)
 
+## 特性
+
+1. 兼容UVC、MIPI、RTSP、视频四种输入
+2. UVC采用jpeg_turbo解码，RTSP使用gstreamer、mpp硬解
+3. RGA预处理
+4. 模型权重复用
+5. 每路可自定义多线程处理
+6. NPU推理，轮询分配NPU核心
+7. CPU后处理
+8. 多路显示墙
+
 ## Todo
 
 1. rk3576下RGA调用可能有越界写，目前需要开辟更大的缓冲区防止报错？
@@ -41,5 +52,6 @@ sudo apt-get install qtbase5-dev
 
 ## 其它
 
-RTSP模拟：[EasyRTSPServer
+- RTSP模拟：[EasyRTSPServer
 ](https://github.com/EasyDarwin/EasyRTSPServer)
+- [performance.sh](./performance.sh)是给RK3588的，不要在RK3576上运行

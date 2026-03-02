@@ -91,8 +91,8 @@ add_subdirectory(../3rdparty 3rdparty.out)
 # 普通版本
 add_executable(demo
     app/config/app_config.cc
-    app/app_controller.cpp
-    app/main.cpp
+    app/app_controller.cc
+    app/main.cc
     app/utils/app_utils.cc
     core/log/app_log.cc
     core/utils/rga_debug_gate.cc
@@ -102,17 +102,17 @@ add_executable(demo
     core/pipeline/frame_pipeline.cc
     modules/source/file_source.cc
     modules/source/rtsp_source.cc
-    modules/source/capturer.cpp
-    modules/source/decChannel.cpp
+    modules/source/capturer.cc
+    modules/source/decChannel.cc
     modules/source/usb_cam_source.cc
     modules/source/mipi_source.cc
     modules/source/source_factory.cc
-    modules/compositor/grid_compositor.cpp
-    modules/display/display.cpp
+    modules/compositor/grid_compositor.cc
+    modules/display/display.cc
     modules/display/display_node.cc
     modules/decode/decode_node.cc
     modules/preprocess/preprocess_node.cc
-    modules/preprocess/image_utils.c
+    modules/preprocess/image_preprocess_utils.cc
     modules/inference/infer_node.cc
     modules/inference/infer_context.cc
     modules/postprocess/postprocess_node.cc

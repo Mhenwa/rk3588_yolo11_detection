@@ -3,7 +3,8 @@
 #include <cstdlib>
 #include <string>
 //=====================   C   =====================
-#include "system.h"
+#include <pthread.h>
+#include <rga/RgaApi.h>
 //=====================  PRJ  =====================
 #include "grid_compositor.h"
 #include "core/log/app_log.h"

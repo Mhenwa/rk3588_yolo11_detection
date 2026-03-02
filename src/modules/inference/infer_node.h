@@ -1,7 +1,7 @@
 #ifndef MODULES_INFERENCE_INFER_NODE_H_
 #define MODULES_INFERENCE_INFER_NODE_H_
 
-#include "core/types/common.h"
+#include "core/types/vision_types.h"
 #include "core/types/infer_types.h"
 
 namespace modules {

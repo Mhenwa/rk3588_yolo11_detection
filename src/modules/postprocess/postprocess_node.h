@@ -5,9 +5,8 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "core/types/common.h"
+#include "core/types/vision_types.h"
 #include "core/types/infer_types.h"
-#include "core/types/preprocess_types.h"
 
 constexpr int OBJ_NUMB_MAX_SIZE = 128;
 constexpr int OBJ_CLASS_NUM = 7;

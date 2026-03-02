@@ -6,7 +6,7 @@
 #ifndef MODULES_SOURCE_SOURCE_BASE_H_
 #define MODULES_SOURCE_SOURCE_BASE_H_
 
-#include "core/types/frame_types.h"
+#include "core/types/vision_types.h"
 
 namespace modules
 {

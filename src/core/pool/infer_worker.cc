@@ -61,7 +61,7 @@ void infer_worker_loop(Worker* worker, ResultQueue* results)
         }
 
         {
-            // 把处理完成的帧写回结果队列，后续由 FramePipeline 做有序合并。
+            // 把处理完成的帧写回结果队列，后续由 ResultQueue 做有序合并。
             std::lock_guard<std::mutex> lk(results->mtx);
             results->items.push_back(std::move(res));
         }

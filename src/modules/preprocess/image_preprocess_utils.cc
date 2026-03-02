@@ -1,15 +1,15 @@
-#include <math.h>
+#include <cmath>
 #include <pthread.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #include "app_log.h"
 #include "core/utils/rga_debug_gate.h"
 #include "drmrga.h"
 #include "im2d.h"
-#include "image_utils.h"
+#include "image_preprocess_utils.h"
 
 static pthread_mutex_t g_rga_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -19,7 +19,7 @@ static int crop_and_scale_image_c(int channel,
                                   unsigned char *dst, int dst_width, int dst_height,
                                   int dst_box_x, int dst_box_y, int dst_box_width, int dst_box_height)
 {
-    if (dst == NULL)
+    if (dst == nullptr)
     {
         LOGE("dst buffer is null\n");
         return -1;
@@ -101,7 +101,7 @@ static int crop_and_scale_image_yuv420sp(unsigned char *src, int src_width, int 
 
 int get_image_size(image_buffer_t *image)
 {
-    if (image == NULL)
+    if (image == nullptr)
         return 0;
     switch (image->format)
     {
@@ -124,7 +124,7 @@ int get_image_size(image_buffer_t *image)
 static int convert_image_cpu(image_buffer_t *src, image_buffer_t *dst,
                              image_rect_t *src_box, image_rect_t *dst_box, char color)
 {
-    if (dst->virt_addr == NULL || src->virt_addr == NULL)
+    if (dst->virt_addr == nullptr || src->virt_addr == nullptr)
         return -1;
 
     const int same_format = (src->format == dst->format);
@@ -138,7 +138,7 @@ static int convert_image_cpu(image_buffer_t *src, image_buffer_t *dst,
     int src_box_y = 0;
     int src_box_w = src->width;
     int src_box_h = src->height;
-    if (src_box != NULL)
+    if (src_box != nullptr)
     {
         src_box_x = src_box->left;
         src_box_y = src_box->top;
@@ -150,7 +150,7 @@ static int convert_image_cpu(image_buffer_t *src, image_buffer_t *dst,
     int dst_box_y = 0;
     int dst_box_w = dst->width;
     int dst_box_h = dst->height;
-    if (dst_box != NULL)
+    if (dst_box != nullptr)
     {
         dst_box_x = dst_box->left;
         dst_box_y = dst_box->top;
@@ -249,14 +249,14 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
     const int srcHeight = src_img->height;
     void *src = src_img->virt_addr;
     const int src_fd = src_img->fd;
-    void *src_phy = NULL;
+    void *src_phy = nullptr;
     const int srcFmt = get_rga_fmt(src_img->format);
 
     const int dstWidth = dst_img->width;
     const int dstHeight = dst_img->height;
     void *dst = dst_img->virt_addr;
     const int dst_fd = dst_img->fd;
-    void *dst_phy = NULL;
+    void *dst_phy = nullptr;
     const int dstFmt = get_rga_fmt(dst_img->format);
 
     const int rotate = 0;
@@ -267,6 +267,7 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
 #endif
 
     int usage = rotate;
+    IM_STATUS ret_rga = IM_STATUS_SUCCESS;
     im_rect srect;
     im_rect drect;
     im_rect prect;
@@ -274,7 +275,7 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
     memset(&drect, 0, sizeof(im_rect));
     memset(&prect, 0, sizeof(im_rect));
 
-    if (src_box != NULL)
+    if (src_box != nullptr)
     {
         srect.x = src_box->left;
         srect.y = src_box->top;
@@ -289,7 +290,7 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
         srect.height = srcHeight;
     }
 
-    if (dst_box != NULL)
+    if (dst_box != nullptr)
     {
         drect.x = dst_box->left;
         drect.y = dst_box->top;
@@ -325,7 +326,7 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
 
     if (use_handle)
     {
-        if (src_phy != NULL)
+        if (src_phy != nullptr)
         {
             rga_handle_src = importbuffer_physicaladdr((uint64_t)src_phy, &in_param);
         }
@@ -348,7 +349,7 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
     }
     else
     {
-        if (src_phy != NULL)
+        if (src_phy != nullptr)
         {
             rga_buf_src = wrapbuffer_physicaladdr(
                 src_phy, srcWidth, srcHeight, srcFmt, srcWidth, srcHeight);
@@ -367,7 +368,7 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
 
     if (use_handle)
     {
-        if (dst_phy != NULL)
+        if (dst_phy != nullptr)
         {
             rga_handle_dst = importbuffer_physicaladdr((uint64_t)dst_phy, &dst_param);
         }
@@ -390,7 +391,7 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
     }
     else
     {
-        if (dst_phy != NULL)
+        if (dst_phy != nullptr)
         {
             rga_buf_dst = wrapbuffer_physicaladdr(
                 dst_phy, dstWidth, dstHeight, dstFmt, dstWidth, dstHeight);
@@ -419,7 +420,7 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
         const IM_STATUS ret_fill = imfill(rga_buf_dst, dst_whole_rect, imcolor);
         if (ret_fill <= 0)
         {
-            if (dst != NULL)
+            if (dst != nullptr)
             {
                 const size_t dst_size = (size_t)get_image_size(dst_img);
                 memset(dst, color, dst_size);
@@ -431,8 +432,7 @@ static int convert_image_rga(image_buffer_t *src_img, image_buffer_t *dst_img,
         }
     }
 
-    const IM_STATUS ret_rga =
-        improcess(rga_buf_src, rga_buf_dst, pat, srect, drect, prect, usage);
+    ret_rga = improcess(rga_buf_src, rga_buf_dst, pat, srect, drect, prect, usage);
     if (ret_rga <= 0)
     {
         LOGE("improcess failed, status=%d, msg=%s\n", ret_rga, imStrError(ret_rga));
@@ -562,18 +562,18 @@ int convert_image_with_letterbox(image_buffer_t *src_image, image_buffer_t *dst_
         left_offset = dst_box.left;
     }
 
-    if (letterbox != NULL)
+    if (letterbox != nullptr)
     {
         letterbox->scale = scale;
         letterbox->x_pad = left_offset;
         letterbox->y_pad = top_offset;
     }
 
-    if (dst_image->virt_addr == NULL && dst_image->fd <= 0)
+    if (dst_image->virt_addr == nullptr && dst_image->fd <= 0)
     {
         const int dst_size = get_image_size(dst_image);
         dst_image->virt_addr = (uint8_t *)malloc((size_t)dst_size);
-        if (dst_image->virt_addr == NULL)
+        if (dst_image->virt_addr == nullptr)
         {
             LOGE("malloc size %d failed\n", dst_size);
             return -1;

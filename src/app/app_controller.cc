@@ -13,9 +13,7 @@
 #include "core/log/app_log.h"
 #include "core/pipeline/frame_pipeline.h"
 #include "core/pool/worker_pool.h"
-#include "core/types/frame_types.h"
-#include "core/types/fps_tracker.h"
-#include "core/types/source_types.h"
+#include "core/types/runtime_types.h"
 #include "modules/decode/decode_node.h"
 #include "modules/display/display_node.h"
 #include "modules/source/source_base.h"
@@ -284,6 +282,8 @@ namespace
             if (!runtime->source->Read(&input_frame))
             {
                 ++capture_fail_streak;
+
+                // RTSP 失败概率高
                 const int read_fail_threshold =
                     (runtime->cfg.type == INPUT_RTSP) ? kRtspReadFailThreshold : 1;
                 if (capture_fail_streak < read_fail_threshold)
