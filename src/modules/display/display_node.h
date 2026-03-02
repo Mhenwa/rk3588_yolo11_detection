@@ -11,6 +11,7 @@ namespace modules
     {
         struct GtkWindowOptions
         {
+            std::string title;
             int width = 0;
             int height = 0;
             bool fullscreen = false;

@@ -4,6 +4,7 @@
     "label": "./model/best3_labels_lists.txt",
     "model_path": "./model/yolo11srk3576.rknn",
     "gtk_window": {
+      "title": "dock_blindspot",
       "width": 1280,
       "height": 800,
       "fullscreen": false

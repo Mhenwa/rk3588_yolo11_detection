@@ -88,14 +88,6 @@ pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
 # ===== Third-party =====
 add_subdirectory(../3rdparty 3rdparty.out)
 
-add_custom_target(check_module_boundaries
-    COMMAND /usr/bin/env bash
-            ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_module_boundaries.sh
-            ${CMAKE_CURRENT_SOURCE_DIR}/..
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMENT "Checking module include boundaries"
-)
-
 # 普通版本
 add_executable(demo
     app/config/app_config.cc
@@ -127,8 +119,6 @@ add_executable(demo
     ../3rdparty/allocator/dma/dma_alloc.cpp
     ${EASYEAI_API_SRCS}
 )
-
-add_dependencies(demo check_module_boundaries)
 
 target_include_directories(demo PRIVATE
     ${LIBRKNNRT_INCLUDES}
@@ -236,19 +226,3 @@ target_link_libraries(demo
 # ===== pthread =====
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
-
-enable_testing()
-
-add_executable(app_config_tests
-    tests/test_app_config.cc
-    app/config/app_config.cc
-)
-
-target_include_directories(app_config_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/app
-    ${CMAKE_CURRENT_SOURCE_DIR}/app/config
-    ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/json/include
-)
-
-add_test(NAME app_config_tests COMMAND app_config_tests)

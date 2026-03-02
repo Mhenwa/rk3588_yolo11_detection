@@ -102,16 +102,14 @@ namespace
         return channel_id;
     }
 
-    bool EnsureDisplayStartedLocked(GtkWallState *state,
-                                    const std::string &window_name)
+    bool EnsureDisplayStartedLocked(GtkWallState *state)
     {
         if (state->started)
         {
             return true;
         }
 
-        std::string &title = WindowTitleStore();
-        title = NormalizeWindowName(window_name);
+        const std::string &title = WindowTitleStore();
         state->desc.winTitle = title.c_str();
         state->desc.width = state->wall_width;
         state->desc.height = state->wall_height;
@@ -155,6 +153,9 @@ namespace modules
             state.wall_width = options.width > 0 ? options.width : DISPLAY_WALL_WIDTH;
             state.wall_height = options.height > 0 ? options.height : DISPLAY_WALL_HEIGHT;
             state.fullscreen = options.fullscreen;
+
+            std::string &title = WindowTitleStore();
+            title = NormalizeWindowName(options.title);
         }
 
         void DisplayNode::InitWindow(const std::string &window_name) const
@@ -176,7 +177,7 @@ namespace modules
             const std::string window = NormalizeWindowName(window_name);
             GtkWallState &state = WallState();
             std::lock_guard<std::mutex> lk(state.mutex);
-            if (!EnsureDisplayStartedLocked(&state, window))
+            if (!EnsureDisplayStartedLocked(&state))
             {
                 return;
             }
@@ -221,7 +222,7 @@ namespace modules
             {
                 GtkWallState &state = WallState();
                 std::lock_guard<std::mutex> lk(state.mutex);
-                if (!EnsureDisplayStartedLocked(&state, window))
+                if (!EnsureDisplayStartedLocked(&state))
                 {
                     return false;
                 }

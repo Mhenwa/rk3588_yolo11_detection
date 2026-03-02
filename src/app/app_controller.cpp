@@ -371,12 +371,20 @@ namespace
     /*
         初始化单路的运行时环境
     */
+    std::string build_source_window_name(const std::string &window_title,
+                                         const SourceConfig &source_cfg)
+    {
+        const std::string title = window_title.empty() ? "dock_blindspot" : window_title;
+        return title + " - " + source_cfg.name;
+    }
+
     std::unique_ptr<SourceRuntime> build_runtime(const SourceConfig &source_cfg,
+                                                 const std::string &window_title,
                                                  const char *model_path)
     {
         auto runtime = std::make_unique<SourceRuntime>();
         runtime->cfg = source_cfg;
-        runtime->window_name = "dock_blindspot - " + source_cfg.name; // Todo：窗口名字也可以在config.json中配置
+        runtime->window_name = build_source_window_name(window_title, source_cfg);
         runtime->source = modules::source::BuildSource(make_source_options(runtime->cfg)); // 为每一路输入创建一个指针
         init_source_report(runtime.get());
 
@@ -533,6 +541,7 @@ bool AppController::Run(const AppConfig &cfg,
     }
 
     modules::display::GtkWindowOptions gtk_window_options;
+    gtk_window_options.title = cfg.gtk_window_title;
     gtk_window_options.width = cfg.gtk_window_width;
     gtk_window_options.height = cfg.gtk_window_height;
     gtk_window_options.fullscreen = cfg.gtk_window_fullscreen;
@@ -546,7 +555,7 @@ bool AppController::Run(const AppConfig &cfg,
     // 依次为每一路创建运行时环境
     for (const auto &source_cfg : cfg.sources)
     {
-        auto runtime = build_runtime(source_cfg, model_path);
+        auto runtime = build_runtime(source_cfg, cfg.gtk_window_title, model_path);
         if (runtime && runtime->init_ok)
             any_init_ok = true;
         runtimes.push_back(std::move(runtime));

@@ -324,6 +324,23 @@ namespace
         const json &window_cfg = *window_it;
         const std::string context = "general.gtk_window";
 
+        std::string title = cfg->gtk_window_title;
+        bool title_set = false;
+        if (!read_string_optional(window_cfg, "title",
+                                  &title, &title_set,
+                                  context, error))
+        {
+            return false;
+        }
+        if (title_set)
+        {
+            if (title.empty())
+            {
+                return set_error(error, "config general.gtk_window.title must be non-empty");
+            }
+            cfg->gtk_window_title = title;
+        }
+
         int width = cfg->gtk_window_width;
         int height = cfg->gtk_window_height;
         bool width_set = false;
