@@ -163,7 +163,8 @@ namespace
         const bool exit_pressed = runtime->display.ShowFrame(runtime->window_name,
                                                              &ready->frame,
                                                              fps_display,
-                                                             ready->infer_ms);
+                                                             ready->infer_ms,
+                                                             runtime->cfg.name);
         if (exit_pressed)
             request_stop();
         return exit_pressed;

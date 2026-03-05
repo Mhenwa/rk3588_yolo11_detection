@@ -27,7 +27,8 @@ namespace modules
             bool ShowFrame(const std::string &window_name,
                            cv::Mat *frame,
                            double fps,
-                           double infer_ms) const;
+                           double infer_ms,
+                           const std::string &source_name = "") const;
 
             bool ShowError(const std::string &window_name,
                            const std::string &message) const;
