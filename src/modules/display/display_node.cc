@@ -88,49 +88,49 @@ namespace
         std::call_once(state.init_once, [&state]()
                        {
 #if APP_HAS_OPENCV_FREETYPE
-            std::vector<std::string> candidates;
-            const char *font_env = std::getenv("APP_FONT_PATH");
-            if (font_env && *font_env)
-            {
-                candidates.push_back(font_env);
-            }
-            // candidates.push_back("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
-            candidates.push_back("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc");
-            candidates.push_back("/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf");
-            candidates.push_back("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc");
-            candidates.push_back("/usr/share/fonts/truetype/noto/NotoSansCJKsc-Regular.otf");
-            candidates.push_back("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc");
-            candidates.push_back("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc");
+                           std::vector<std::string> candidates;
+                           const char *font_env = std::getenv("APP_FONT_PATH");
+                           if (font_env && *font_env)
+                           {
+                               candidates.push_back(font_env);
+                           }
+                           // candidates.push_back("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
+                           candidates.push_back("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc");
+                           candidates.push_back("/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf");
+                           candidates.push_back("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc");
+                           candidates.push_back("/usr/share/fonts/truetype/noto/NotoSansCJKsc-Regular.otf");
+                           candidates.push_back("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc");
+                           candidates.push_back("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc");
 
-            std::string selected;
-            for (const auto &candidate : candidates)
-            {
-                if (FileExists(candidate))
-                {
-                    selected = candidate;
-                    break;
-                }
-            }
-            if (selected.empty())
-            {
-                LOGW("no CJK font found, name overlay will fallback to cv::putText");
-                return;
-            }
+                           std::string selected;
+                           for (const auto &candidate : candidates)
+                           {
+                               if (FileExists(candidate))
+                               {
+                                   selected = candidate;
+                                   break;
+                               }
+                           }
+                           if (selected.empty())
+                           {
+                               LOGW("no CJK font found, name overlay will fallback to cv::putText");
+                               return;
+                           }
 
-            try
-            {
-                state.ft2 = cv::freetype::createFreeType2();
-                state.ft2->loadFontData(selected, 0);
-                state.font_path = selected;
-                state.ready = true;
-                LOGI("overlay text renderer uses font: %s\n", selected.c_str());
-            }
-            catch (const cv::Exception &e)
-            {
-                LOGW("init freetype failed, fallback to cv::putText: %s\n", e.what());
-            }
+                           try
+                           {
+                               state.ft2 = cv::freetype::createFreeType2();
+                               state.ft2->loadFontData(selected, 0);
+                               state.font_path = selected;
+                               state.ready = true;
+                               LOGI("overlay text renderer uses font: %s\n", selected.c_str());
+                           }
+                           catch (const cv::Exception &e)
+                           {
+                               LOGW("init freetype failed, fallback to cv::putText: %s\n", e.what());
+                           }
 #else
-            LOGW("opencv freetype module is unavailable, Chinese overlay is disabled");
+                           LOGW("opencv freetype module is unavailable, Chinese overlay is disabled");
 #endif
                        });
     }
@@ -149,16 +149,41 @@ namespace
 
         InitOverlayTextRenderer();
         OverlayTextState &state = TextState();
+        const cv::Scalar fill_color(255, 255, 255);
+        const cv::Scalar stroke_color(0, 0, 0);
+        const int outline_px = 2;
 
 #if APP_HAS_OPENCV_FREETYPE
         if (state.ready && state.ft2)
         {
             std::lock_guard<std::mutex> lk(state.draw_mutex);
+            for (int dy = -outline_px; dy <= outline_px; ++dy)
+            {
+                for (int dx = -outline_px; dx <= outline_px; ++dx)
+                {
+                    if (dx == 0 && dy == 0)
+                    {
+                        continue;
+                    }
+                    if (dx * dx + dy * dy > outline_px * outline_px + 1)
+                    {
+                        continue;
+                    }
+                    state.ft2->putText(*frame,
+                                       text,
+                                       cv::Point(org.x + dx, org.y + dy),
+                                       font_height,
+                                       stroke_color,
+                                       -1,
+                                       cv::LINE_AA,
+                                       false);
+                }
+            }
             state.ft2->putText(*frame,
                                text,
                                org,
                                font_height,
-                               cv::Scalar(0, 255, 0),
+                               fill_color,
                                -1,
                                cv::LINE_AA,
                                false);
@@ -169,8 +194,16 @@ namespace
                     org,
                     cv::FONT_HERSHEY_SIMPLEX,
                     fallback_scale,
-                    cv::Scalar(0, 255, 0),
-                    fallback_thickness);
+                    stroke_color,
+                    fallback_thickness + 2,
+                    cv::LINE_AA);
+        cv::putText(*frame, text,
+                    org,
+                    cv::FONT_HERSHEY_SIMPLEX,
+                    fallback_scale,
+                    fill_color,
+                    fallback_thickness,
+                    cv::LINE_AA);
     }
 
     struct GtkWallState
@@ -321,12 +354,12 @@ namespace modules
             snprintf(info, sizeof(info), "FPS: %.1f | Infer: %.1f ms", fps, infer_ms);
             DrawOverlayText(frame, source_name,
                             cv::Point(10, 30),
-                            30,
+                            38,
                             0.8,
                             2);
             DrawOverlayText(frame, info,
                             cv::Point(10, 80),
-                            28,
+                            35,
                             0.8,
                             2);
 

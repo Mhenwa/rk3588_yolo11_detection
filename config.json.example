@@ -14,7 +14,7 @@
     "video_camera": {
       "sources": [
         {
-          "name": "USB摄像头输入，桌子",
+          "name": "USB摄像头输入，香橙派USB摄像头",
           "type": "usb_camera",
           "input": "/dev/video49",
           "threads": 1,
@@ -25,7 +25,7 @@
           "conf_threshold": 0.3
         },
         {
-          "name": "MIPI摄像头输入，天花板",
+          "name": "MIPI摄像头输入，在CSI0的IMX415",
           "type": "mipi_camera",
           "input": "/dev/video22",
           "threads": 1,
@@ -36,7 +36,7 @@
           "conf_threshold": 0.3
         },
         {
-          "name": "rtsp输入，模拟器",
+          "name": "rtsp输入，运行在windows的RTSP模拟器",
           "type": "rtsp",
           "input": "rtsp://192.168.137.1:554/easy0.mp4",
           "threads": 1,
@@ -47,7 +47,7 @@
           "conf_threshold": 0.3
         },
         {
-          "name": "视频文件输入，行人视频",
+          "name": "视频文件输入，网上的行人视频",
           "type": "video",
           "input": "./model/1280x720p.mp4",
           "threads": 1,
