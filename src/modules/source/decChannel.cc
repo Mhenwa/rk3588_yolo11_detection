@@ -6,15 +6,20 @@
 #include <cstring>
 #include <string>
 //=====================   C   =====================
-#include <gst/video/video-info.h>
+#include <gst/video/video.h>
 #include <pthread.h>
-//=====================  SDK  =====================
-#include "system_opt.h"
-#include "gst_opt.h"
 //=====================  PRJ  =====================
 #include "decChannel.h"
 #include "modules/source/rtsp_source.h"
 #include "core/log/app_log.h"
+
+typedef struct {
+    gchar strFmt[32];
+    gint width;
+    gint height;
+    gint horStride;
+    gint verStride;
+} FrameDesc_t;
 
 // 错误处理函数
 static gboolean on_error(GstBus *bus, GstMessage *message, gpointer data)
@@ -42,6 +47,99 @@ static gboolean print_pad_info(GQuark field, const GValue *value, gpointer pfx)
     // g_print("%s  %15s: %s\n", (gchar *)pfx, g_quark_to_string (field), str);
     g_free(str);
     return TRUE;
+}
+
+static void copy_frame_format(gchar *dst, size_t dst_len, const gchar *src)
+{
+    if (!dst || dst_len == 0)
+    {
+        return;
+    }
+    const gchar *safe_src = (src && src[0] != '\0') ? src : "UNKNOWN";
+    std::strncpy(dst, safe_src, dst_len - 1);
+    dst[dst_len - 1] = '\0';
+}
+
+static GstBuffer *sample_get_buffer_with_desc(GstSample *sample, FrameDesc_t *frame_desc)
+{
+    if (frame_desc)
+    {
+        std::memset(frame_desc, 0, sizeof(*frame_desc));
+    }
+    if (!sample)
+    {
+        return NULL;
+    }
+
+    GstBuffer *buffer = gst_sample_get_buffer(sample);
+    if (!buffer || !frame_desc)
+    {
+        return buffer;
+    }
+
+    GstCaps *caps = gst_sample_get_caps(sample);
+    GstVideoInfo video_info;
+    std::memset(&video_info, 0, sizeof(video_info));
+    if (caps && gst_video_info_from_caps(&video_info, caps))
+    {
+        frame_desc->width = static_cast<gint>(GST_VIDEO_INFO_WIDTH(&video_info));
+        frame_desc->height = static_cast<gint>(GST_VIDEO_INFO_HEIGHT(&video_info));
+        frame_desc->horStride = static_cast<gint>(GST_VIDEO_INFO_PLANE_STRIDE(&video_info, 0));
+        frame_desc->verStride = frame_desc->height;
+        copy_frame_format(frame_desc->strFmt,
+                          sizeof(frame_desc->strFmt),
+                          gst_video_format_to_string(GST_VIDEO_INFO_FORMAT(&video_info)));
+    }
+    else
+    {
+        copy_frame_format(frame_desc->strFmt, sizeof(frame_desc->strFmt), "UNKNOWN");
+    }
+
+    GstVideoMeta *video_meta = gst_buffer_get_video_meta(buffer);
+    if (video_meta)
+    {
+        if (video_meta->width > 0)
+        {
+            frame_desc->width = static_cast<gint>(video_meta->width);
+        }
+        if (video_meta->height > 0)
+        {
+            frame_desc->height = static_cast<gint>(video_meta->height);
+            frame_desc->verStride = static_cast<gint>(video_meta->height);
+        }
+        if (video_meta->n_planes > 0 && video_meta->stride[0] > 0)
+        {
+            frame_desc->horStride = static_cast<gint>(video_meta->stride[0]);
+        }
+        if (video_meta->n_planes > 1 &&
+            video_meta->offset[1] > video_meta->offset[0] &&
+            frame_desc->horStride > 0)
+        {
+            const guint y_plane_bytes = video_meta->offset[1] - video_meta->offset[0];
+            const gint y_rows = static_cast<gint>(y_plane_bytes / static_cast<guint>(frame_desc->horStride));
+            if (y_rows > 0)
+            {
+                frame_desc->verStride = y_rows;
+            }
+        }
+        copy_frame_format(frame_desc->strFmt,
+                          sizeof(frame_desc->strFmt),
+                          gst_video_format_to_string(video_meta->format));
+    }
+
+    if (frame_desc->horStride <= 0 && frame_desc->width > 0)
+    {
+        frame_desc->horStride = frame_desc->width;
+    }
+    if (frame_desc->verStride <= 0 && frame_desc->height > 0)
+    {
+        frame_desc->verStride = frame_desc->height;
+    }
+    if (frame_desc->strFmt[0] == '\0')
+    {
+        copy_frame_format(frame_desc->strFmt, sizeof(frame_desc->strFmt), "UNKNOWN");
+    }
+    return buffer;
 }
 
 /* This function will be called by the pad-added signal */
@@ -146,7 +244,7 @@ static GstFlowReturn new_sample(GstElement *sink, gpointer user_data)
     {
         FrameDesc_t stFrameDesc;
         // 提取一帧sample中的buffer, 注意:这个buffer是无法直接用的,它不是char类型
-        GstBuffer *buffer = gstopt_sample_get_buffer(sample, &stFrameDesc);
+        GstBuffer *buffer = sample_get_buffer_with_desc(sample, &stFrameDesc);
         if (!buffer)
         {
             LOGE("gst_sample_get_buffer fail");
@@ -165,7 +263,7 @@ static GstFlowReturn new_sample(GstElement *sink, gpointer user_data)
             imgDesc.height = stFrameDesc.height;
             imgDesc.horStride = stFrameDesc.horStride;
             imgDesc.verStride = stFrameDesc.verStride;
-            imgDesc.dataSize = map.size;
+            imgDesc.dataSize = static_cast<int>(map.size);
             std::strncpy(imgDesc.fmt, stFrameDesc.strFmt, sizeof(imgDesc.fmt) - 1);
             imgDesc.fmt[sizeof(imgDesc.fmt) - 1] = '\0';
             modules::source::rtspVideoOutHandle((char *)map.data, imgDesc);
