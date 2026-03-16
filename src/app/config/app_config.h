@@ -38,6 +38,8 @@ struct AppConfig
     std::string label_path;
     InputType mode_type = INPUT_VIDEO_CAMERA; // 事实上只有这一个，原来的模式被删除了
     std::string gtk_window_title = "dock_blindspot";
+    int gtk_window_x = 48;
+    int gtk_window_y = 48;
     int gtk_window_width = DISPLAY_WALL_WIDTH;
     int gtk_window_height = DISPLAY_WALL_HEIGHT;
     bool gtk_window_fullscreen = false;

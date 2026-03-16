@@ -341,6 +341,27 @@ namespace
             cfg->gtk_window_title = title;
         }
 
+        int pos_x = cfg->gtk_window_x;
+        int pos_y = cfg->gtk_window_y;
+        if (!read_int_optional(window_cfg, "x",
+                               &pos_x, nullptr,
+                               context, error))
+        {
+            return false;
+        }
+        if (!read_int_optional(window_cfg, "y",
+                               &pos_y, nullptr,
+                               context, error))
+        {
+            return false;
+        }
+        if (pos_x < 0 || pos_y < 0)
+        {
+            return set_error(error, "config general.gtk_window.x/y must be >= 0");
+        }
+        cfg->gtk_window_x = pos_x;
+        cfg->gtk_window_y = pos_y;
+
         int width = cfg->gtk_window_width;
         int height = cfg->gtk_window_height;
         bool width_set = false;

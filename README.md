@@ -22,11 +22,13 @@ sudo apt-get install qtbase5-dev
 ```
 
 2. 编写配置文件`config.json`，见`config.json.example`
-3. 运行脚本`build_linux_rk.sh`
+3. 运行命令`chmod +x build_linux_rk.sh`授予执行权限，然后运行脚本`build_linux_rk.sh`
 
 4. 效果，左方为USB摄像头输入，右方为RTSP输入。图像分辨率均为1920x1080，模型Yolov11s
 
 ![image-20260301200819681](./assets/2026-03-02_125748.png)
+
+5. 复制`demo.desktop`至桌面，授予执行权限`chmod +x ~/Desktop/demo.desktop`
 
 ## 特性
 
@@ -38,6 +40,8 @@ sudo apt-get install qtbase5-dev
 6. NPU推理，轮询分配NPU核心
 7. CPU后处理
 8. 多路显示墙
+9. 支持鼠标双击或触摸单击进入/退出全屏
+
 
 ## Todo
 

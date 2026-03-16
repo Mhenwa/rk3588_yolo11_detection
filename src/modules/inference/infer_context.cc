@@ -97,11 +97,13 @@ int init_context_from_file(const char* model_path, rknn_context* ctx_out)
 {
     if (!model_path || !ctx_out) return -1;
 
+    LOGI("load model: %s\n", model_path);
+
     int model_len = 0;
     char* model = nullptr;
     model_len = read_data_from_file_local(model_path, &model);
     if (!model) {
-        LOGE("load_model fail!\n");
+        LOGE("load_model fail! path=%s\n", model_path);
         return -1;
     }
 

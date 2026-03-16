@@ -543,6 +543,8 @@ bool AppController::Run(const AppConfig &cfg,
 
     modules::display::GtkWindowOptions gtk_window_options;
     gtk_window_options.title = cfg.gtk_window_title;
+    gtk_window_options.x = cfg.gtk_window_x;
+    gtk_window_options.y = cfg.gtk_window_y;
     gtk_window_options.width = cfg.gtk_window_width;
     gtk_window_options.height = cfg.gtk_window_height;
     gtk_window_options.fullscreen = cfg.gtk_window_fullscreen;

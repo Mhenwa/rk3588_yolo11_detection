@@ -11,6 +11,9 @@
 
 static Display_t *gDispDesc = NULL;
 static std::atomic<bool> gDisplayRunning(false);
+static std::atomic<bool> gWindowFullscreen(false);
+static std::atomic<int> gWindowPosX(48);
+static std::atomic<int> gWindowPosY(48);
 static char *gDispBuffer = NULL;
 static char *gDispRawBuffer = NULL;
 static size_t gDispPayloadBytes = 0;
@@ -102,9 +105,94 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data)
     (void)widget;
     (void)user_data;
     gDisplayRunning.store(false);
+    gWindowFullscreen.store(false);
     gtk_main_quit();
 }
-static GtkWidget *disp_init(const char *strWinTitle, int32_t width, int32_t height, bool fullscreen)
+
+static gboolean move_window_to_saved_position(gpointer user_data)
+{
+    GtkWindow *window = GTK_WINDOW(user_data);
+    if (window)
+    {
+        gtk_window_move(window, gWindowPosX.load(), gWindowPosY.load());
+        g_object_unref(window);
+    }
+    return G_SOURCE_REMOVE;
+}
+
+static void schedule_window_move(GtkWindow *window)
+{
+    if (!window)
+    {
+        return;
+    }
+    g_timeout_add(50, move_window_to_saved_position, g_object_ref(window));
+}
+
+static void toggle_window_fullscreen(GtkWindow *window)
+{
+    if (!window)
+    {
+        return;
+    }
+
+    const bool is_fullscreen = gWindowFullscreen.load();
+    if (is_fullscreen)
+    {
+        gtk_window_unfullscreen(window);
+        schedule_window_move(window);
+    }
+    else
+    {
+        gtk_window_fullscreen(window);
+    }
+    gWindowFullscreen.store(!is_fullscreen);
+}
+
+static void on_image_multi_press(GtkGestureMultiPress *gesture,
+                                 gint n_press,
+                                 gdouble x,
+                                 gdouble y,
+                                 gpointer user_data)
+{
+    (void)gesture;
+    (void)x;
+    (void)y;
+    if (!user_data)
+    {
+        return;
+    }
+
+    bool should_toggle = (n_press == 2);
+    GdkEvent *event = gtk_get_current_event();
+    if (event)
+    {
+        GdkDevice *device = gdk_event_get_source_device(event);
+        if (!device)
+        {
+            device = gdk_event_get_device(event);
+        }
+        if (device && gdk_device_get_source(device) == GDK_SOURCE_TOUCHSCREEN)
+        {
+            should_toggle = (n_press == 1);
+        }
+        gdk_event_free(event);
+    }
+
+    if (!should_toggle)
+    {
+        return;
+    }
+
+    toggle_window_fullscreen(GTK_WINDOW(user_data));
+}
+
+static GtkWidget *disp_init(const char *strWinTitle,
+                            int32_t pos_x,
+                            int32_t pos_y,
+                            int32_t width,
+                            int32_t height,
+                            bool fullscreen)
 {
     gtk_init(NULL, NULL); // 初始化 GTK+ 库
 
@@ -114,8 +202,18 @@ static GtkWidget *disp_init(const char *strWinTitle, int32_t width, int32_t heig
         g_signal_connect(pWindow, "destroy", G_CALLBACK(on_window_destroy), NULL);
         gtk_window_set_title(GTK_WINDOW(pWindow), strWinTitle);
         gtk_window_set_default_size(GTK_WINDOW(pWindow), width, height);
+        gWindowPosX.store(pos_x);
+        gWindowPosY.store(pos_y);
+        gWindowFullscreen.store(fullscreen);
         if (fullscreen)
+        {
             gtk_window_fullscreen(GTK_WINDOW(pWindow));
+        }
+        else
+        {
+            gtk_window_unfullscreen(GTK_WINDOW(pWindow));
+            gtk_window_move(GTK_WINDOW(pWindow), pos_x, pos_y);
+        }
     }
     else
     {
@@ -137,7 +235,13 @@ static int32_t disp_set_loop(GtkWidget *pWindow, GSourceFunc pCamUpdate)
     // 创建一个Image对象
     GtkWidget *image = gtk_image_new();
 #endif
-    gtk_container_add(GTK_CONTAINER(pWindow), image /*drawing_area*/);
+    GtkWidget *event_box = gtk_event_box_new();
+    gtk_widget_add_events(event_box, GDK_BUTTON_PRESS_MASK | GDK_TOUCH_MASK);
+    GtkGesture *multi_press = gtk_gesture_multi_press_new(event_box);
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(multi_press), 0);
+    g_signal_connect(multi_press, "pressed", G_CALLBACK(on_image_multi_press), pWindow);
+    gtk_container_add(GTK_CONTAINER(event_box), image);
+    gtk_container_add(GTK_CONTAINER(pWindow), event_box /*drawing_area*/);
     // 启动一个循环，定期更新绘图区域显示视频帧
     GSource *gSource = g_timeout_source_new(33); // 33ms，30帧/秒
     g_source_set_callback(gSource, pCamUpdate, image /*drawing_area*/, NULL);
@@ -146,7 +250,12 @@ static int32_t disp_set_loop(GtkWidget *pWindow, GSourceFunc pCamUpdate)
 }
 int display(Display_t *disp)
 {
-    GtkWidget *pWindow = disp_init(disp->winTitle, disp->width, disp->height, disp->fullscreen);
+    GtkWidget *pWindow = disp_init(disp->winTitle,
+                                   disp->x,
+                                   disp->y,
+                                   disp->width,
+                                   disp->height,
+                                   disp->fullscreen);
     if (pWindow)
     {
         gDisplayRunning.store(true);

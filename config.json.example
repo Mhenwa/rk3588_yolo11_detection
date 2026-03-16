@@ -5,6 +5,8 @@
     "model_path": "./model/yolo11srk3576.rknn",
     "gtk_window": {
       "title": "dock_blindspot",
+      "x": 48,
+      "y": 48,
       "width": 1280,
       "height": 800,
       "fullscreen": false
