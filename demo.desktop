@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=demo
+Comment=测试demo
+Exec=bash -c "cd /home/orin-nano/rk3588_yolo11_detection && ./build/demo"
+Icon=/home/orin-nano/rk3588_yolo11_detection/assets/gtk_icon.png
+Terminal=true
+Categories=Utility;
