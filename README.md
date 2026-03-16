@@ -2,6 +2,12 @@
 
 在rk3588/rk3576上使用yolo11进行目标识别
 
+<p align="center">
+  <a href="">
+    <img src="./assets/quickstart.gif" width="100%">
+  </a>
+</p>
+
 ## 快速开始
 
 1. 环境
