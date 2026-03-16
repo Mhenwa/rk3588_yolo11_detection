@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="">
-    <img src="./assets/quickstart.gif" width="100%">
+    <img src="./assets/quickstart.gif" width="80%">
   </a>
 </p>
 
